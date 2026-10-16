@@ -1,1 +1,69 @@
-<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>墨页 Folio</title><script src="/vendor/markdown-it.min.js"></script><script src="/vendor/footnote.min.js"></script><script src="/vendor/purify.min.js"></script><script src="/vendor/highlight.min.js"></script><body><h1>墨页 Folio</h1><p>本地文档排版工作台</p></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>墨页 Folio · 文档排版工作台</title>
+ <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232a6953'/%3E%3Cpath d='M12 10h16v4H16v6h10v4H16v8h-4z' fill='white'/%3E%3C/svg%3E">
+ <link rel="stylesheet" href="/workspace.css">
+ <script defer src="/vendor/markdown-it.min.js"></script><script defer src="/vendor/footnote.min.js"></script><script defer src="/vendor/purify.min.js"></script><script defer src="/vendor/highlight.min.js"></script>
+ <script type="module" src="/app.js"></script>
+</head>
+<body>
+ <header class="topbar">
+  <a class="brand" href="/" aria-label="墨页 Folio 首页"><span class="brand-mark">F<span></span></span><span>墨页 <b>Folio</b><small>文档排版工作台</small></span></a>
+  <div class="header-right"><span class="local-badge"><i></i>文件仅在本机处理</span><button id="example" class="button ghost">打开示例</button><button id="export" class="button primary" disabled><span aria-hidden="true">↧</span> 导出 HTML</button></div>
+ </header>
+ <div class="workspace">
+  <aside class="sidebar">
+   <div class="section-label">文档来源 <span>01</span></div>
+   <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="选择或拖入文档">
+    <svg viewBox="0 0 32 36" width="29" height="33" fill="none" aria-hidden="true"><path d="M5 1h15l8 8v25H5z" stroke="currentColor" stroke-width="1.4"/><path d="M20 1v8h8M10 18h13M10 24h10" stroke="currentColor" stroke-width="1.4"/></svg>
+    <strong>拖入你的文档</strong><span>Markdown 或 PDF</span><button id="choose" class="small-button" type="button">选择文档 <span aria-hidden="true">↗</span></button>
+   </div>
+   <input id="file-input" type="file" accept=".md,.markdown,.pdf,.png,.jpg,.jpeg,.webp,.gif,.svg" multiple hidden>
+   <button id="assets" class="resource-button">＋ 导入资源文件夹</button><input id="folder-input" type="file" webkitdirectory multiple hidden>
+   <p class="field-help">可同时导入图片，保留相对路径。</p>
+   <div class="sidebar-divider"></div>
+   <div id="pdf-settings" hidden>
+    <div class="section-label">PDF 转换</div>
+    <label class="select-field">模式<select id="pdf-mode"><option value="faithful">保真 · 保留原页</option><option value="reading">阅读 · 尝试重排</option></select></label>
+    <label class="select-field">分辨率<select id="pdf-dpi"><option value="96">96 DPI · 轻量</option><option value="144" selected>144 DPI · 标准</option><option value="192">192 DPI · 清晰</option></select></label>
+    <p class="field-help">保真页保留外观，清晰度受分辨率限制。复杂页可能回退。</p><div class="sidebar-divider"></div>
+   </div>
+   <div class="section-label">排版主题 <span>02</span></div>
+   <div class="theme-grid" role="group" aria-label="排版主题">
+    <button class="theme-option selected" data-theme="modern" aria-label="现代阅读" aria-pressed="true"><span class="theme-sample modern-sample"><i></i><i></i><i></i><i></i></span><span>现代阅读</span></button>
+    <button class="theme-option" data-theme="academic" aria-label="学术论文" aria-pressed="false"><span class="theme-sample academic-sample"><i></i><i></i><i></i><i></i></span><span>学术论文</span></button>
+    <button class="theme-option" data-theme="report" aria-label="简洁报告" aria-pressed="false"><span class="theme-sample report-sample"><i></i><i></i><i></i><i></i></span><span>简洁报告</span></button>
+   </div>
+   <div class="sidebar-divider"></div>
+   <div class="section-label">阅读细节 <span>03</span></div>
+   <label class="select-field" for="font-family">正文字体<select id="font-family"><option value="sans">现代黑体</option><option value="serif">经典衬线</option></select></label>
+   <label class="range-field" for="font-size"><span>字号 <output id="font-size-value">17 px</output></span><input id="font-size" type="range" min="12" max="24" value="17"></label>
+   <label class="range-field" for="line-height"><span>行距 <output id="line-height-value">1.8</output></span><input id="line-height" type="range" min="1.3" max="2.4" step="0.1" value="1.8"></label>
+   <label class="range-field" for="content-width"><span>内容宽度 <output id="content-width-value">820 px</output></span><input id="content-width" type="range" min="480" max="1200" step="20" value="820"></label>
+   <div class="sidebar-note"><span class="note-icon">∑</span><div><strong>专业公式，随页保存</strong><p>SVG 数学排版，图片与样式内嵌，导出后也能离线阅读。</p></div></div>
+  </aside>
+  <main class="main-area">
+   <div class="workspace-heading"><div><span class="eyebrow">YOUR WORDS, WELL COMPOSED</span><h1>让内容，清晰呈现<span>。</span></h1></div><div class="format-tags"><span>Markdown</span><span>PDF</span><span>→ HTML</span></div></div>
+   <div class="mobile-tabs"><button data-tab="source" class="active">原文</button><button data-tab="preview">预览</button><button data-tab="settings">设置</button></div>
+   <div class="panels">
+    <section class="panel source-panel">
+     <div class="panel-toolbar"><span><i class="panel-dot"></i>源文档 <small id="source-type">MARKDOWN</small></span><span id="source-label" class="file-label">未命名.md</span></div>
+     <div class="source-info"><span id="source-name">未命名.md</span><span id="source-meta">可直接编辑</span></div>
+     <textarea id="editor" aria-label="Markdown 源文档" spellcheck="false" placeholder="在这里粘贴 Markdown，或导入文档……"></textarea>
+     <object id="pdf-source" type="application/pdf" aria-label="PDF 原文" hidden></object>
+     <div class="panel-foot"><span id="character-count">0 字符</span><span>自动更新预览 <i class="live-dot"></i></span></div>
+    </section>
+    <section class="panel preview-panel">
+     <div class="panel-toolbar"><span><i class="panel-dot green"></i>HTML 预览 <small>LIVE</small></span><div class="view-switch"><button id="desktop-view" class="active" aria-label="桌面宽度">▱</button><button id="mobile-view" aria-label="手机宽度">▯</button></div></div>
+     <div class="preview-surface"><iframe id="preview" title="转换结果预览" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe><div id="preview-loading" class="preview-loading" hidden><div class="spinner"></div><span>正在排版…</span></div></div>
+     <div class="panel-foot"><span id="result-meta">等待文档</span><span>独立 HTML · 离线可读</span></div>
+    </section>
+   </div>
+   <details id="diagnostics" class="diagnostics" hidden><summary id="diagnostics-title">转换提示</summary><ul id="diagnostics-list"></ul><button id="export-missing" class="small-button" hidden>带缺失标记导出</button></details>
+   <div class="statusbar"><span id="status" role="status" aria-live="polite">正在准备工作台…</span><span class="status-right">本地转换 <span>·</span> 无需上传</span></div>
+  </main>
+ </div>
+ <noscript>请启用 JavaScript 以使用本机文档排版功能。</noscript>
+</body></html>
