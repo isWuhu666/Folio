@@ -1,0 +1,19 @@
+{
+  "name": "folio-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:vendor": "node scripts/prepare-vendor.mjs",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@highlightjs/cdn-assets": "11.12.0",
+    "dompurify": "3.4.17",
+    "markdown-it": "15.0.3",
+    "markdown-it-footnote": "4.0.0",
+    "mathjax": "4.1.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}
