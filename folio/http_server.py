@@ -3,9 +3,13 @@ import json
 import mimetypes
 from pathlib import Path
 import threading
+import subprocess
+import sys
+import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, parse_qs
 import webbrowser
+from .limits import MAX_PDF_BYTES, PDF_TIMEOUT_SECONDS
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / 'web'
@@ -67,13 +71,44 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.valid_request():
             return self.send_json(403, {'error': '只接受本机同源请求。'})
-        self.send_json(501, {'error': 'PDF 转换模块尚未就绪。'})
+        parsed=urlsplit(self.path)
+        if parsed.path!='/api/pdf':return self.send_json(404,{'error':'接口不存在。'})
+        try:
+            query=parse_qs(parsed.query);mode=query.get('mode',['faithful'])[0];dpi=int(query.get('dpi',['144'])[0])
+            if mode not in ('faithful','reading') or dpi not in (96,144,192):raise ValueError()
+            size=int(self.headers.get('Content-Length','-1'))
+            if size<0:return self.send_json(411,{'error':'请求缺少有效文件长度。'})
+            if size>MAX_PDF_BYTES:return self.send_json(413,{'error':'PDF 超过 40 MiB，请拆分文档。'})
+        except ValueError:return self.send_json(400,{'error':'转换模式、分辨率或文件长度无效。'})
+        if not self.server.pdf_lock.acquire(blocking=False):return self.send_json(503,{'error':'另一个 PDF 正在转换，请稍后重试。'})
+        process=None
+        try:
+            self.connection.settimeout(15)
+            data=self.rfile.read(size)
+            if len(data)!=size:raise ValueError('文件传输不完整，请重试。')
+            process=subprocess.Popen([sys.executable,'-m','folio.pdf_worker',mode,str(dpi)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+            output,_=process.communicate(data,timeout=self.server.pdf_timeout)
+            if process.returncode!=0:
+                status,payload=500,{'error':'PDF 工作进程异常退出，请降低分辨率或拆分文档。'}
+            else:
+                result=json.loads(output)
+                status,payload=(result.get('status',400),{'error':result['error']}) if 'error' in result else (200,result['result'])
+        except subprocess.TimeoutExpired:
+            status,payload=504,{'error':'转换超过时间限制，请拆分文档或降低分辨率。'}
+        except (TimeoutError,socket.timeout):status,payload=408,{'error':'文件传输超时，请重试。'}
+        except ValueError:status,payload=400,{'error':'文件数据无效或传输不完整，请重试。'}
+        except Exception:status,payload=500,{'error':'PDF 转换未能完成，请重新安装依赖或检查文件。'}
+        finally:
+            if process and process.poll() is None:process.kill();process.communicate()
+            self.server.pdf_lock.release()
+        self.send_json(status,payload)
 
 
 def create_server(port=8765):
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
     server.pdf_lock = threading.Lock()
+    server.pdf_timeout = PDF_TIMEOUT_SECONDS
     return server
 
 
