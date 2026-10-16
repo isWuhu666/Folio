@@ -6,10 +6,10 @@ import {buildHtml,downloadHtml} from './modules/export.js';
 import {createTaskState} from './modules/state.js';
 const $=id=>document.getElementById(id);
 const state=createTaskState(),options={...defaults};
-let file=null,sourcePath='未命名.md',resources=null,resourceFiles=[],pdfUrl=null,pdfRequest=null,timer=null,currentHtml='';
+let file=null,sourcePath='未命名.md',resources=null,resourceFiles=[],pdfUrl=null,pdfQueue=Promise.resolve(),timer=null,currentHtml='';
 const isPdf=()=>file?.name.toLowerCase().endsWith('.pdf');
 function status(message,error=false){$('status').textContent=message;$('status').parentElement.classList.toggle('error',error);}
-function begin(){clearTimeout(timer);pdfRequest?.abort();const id=state.begin();$('export').disabled=true;$('preview-loading').hidden=false;return id;}
+function begin(){clearTimeout(timer);const id=state.begin();$('export').disabled=true;$('preview-loading').hidden=false;return id;}
 function renderDiagnostics(model){
  const list=model.diagnostics;$('diagnostics').hidden=!list.length;$('diagnostics-title').textContent=`转换提示 · ${list.length} 项`;
  $('diagnostics-list').innerHTML=list.slice(0,100).map(d=>`<li>${escapeHtml(d.message)}${d.source?` <code>${escapeHtml(d.source.slice(0,120))}</code>`:''}</li>`).join('');
@@ -29,11 +29,18 @@ async function convert(id){
  try{
   let draft;
   if(isPdf()){
-   pdfRequest=new AbortController();
-   const response=await fetch(`/api/pdf?mode=${$('pdf-mode').value}&dpi=${$('pdf-dpi').value}`,{method:'POST',body:file,headers:{'Content-Type':'application/pdf'},signal:pdfRequest.signal});
-   const result=await response.json();if(!response.ok)throw new Error(result.error||'PDF 转换失败');
-   draft=pdfResultToDraft(result);draft.title=file.name.replace(/\.pdf$/i,'');
-  }else draft=renderMarkdown($('editor').value,resources,sourcePath);
+   const selected=file,mode=$('pdf-mode').value,dpi=$('pdf-dpi').value;
+   const job=pdfQueue.then(async()=>{
+    if(!state.isCurrent(id))return null;
+    const response=await fetch(`/api/pdf?mode=${mode}&dpi=${dpi}`,{method:'POST',body:selected,headers:{'Content-Type':'application/pdf'}});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'PDF 转换失败');return result;
+   });
+   pdfQueue=job.catch(()=>{});const result=await job;if(!result||!state.isCurrent(id))return;
+   draft=pdfResultToDraft(result);draft.title=selected.name.replace(/\.pdf$/i,'');
+  }else{
+   if(typeof window.markdownit!=='function'||typeof window.markdownitFootnote!=='function'||!window.DOMPurify||!window.hljs)throw new Error('本地排版资源缺失，请重新运行 安装.cmd。');
+   draft=renderMarkdown($('editor').value,resources,sourcePath);
+  }
   if(!state.isCurrent(id))return;
   const model=await typesetDocument(draft,options);finish(id,model);
  }catch(error){
@@ -54,18 +61,19 @@ async function acceptFiles(files,folder=false){
  try{
   const docs=files.filter(f=>/\.(md|markdown|pdf)$/i.test(f.name));
   const main=folder?(file?null:(docs.length===1?docs[0]:null)):docs[0];
-  if(main){
-   if(main.size>(/\.pdf$/i.test(main.name)?40:5)*1024*1024)throw new Error('文档超过大小限制：PDF 40 MiB，Markdown 5 MiB。');
-   releasePdf();file=main;sourcePath=main.webkitRelativePath||main.name;
-   if(!isPdf())$('editor').value=await main.text();else{pdfUrl=URL.createObjectURL(main);$('pdf-source').data=pdfUrl;}
-  }
+  if(main&&main.size>(/\.pdf$/i.test(main.name)?40:5)*1024*1024)throw new Error('文档超过大小限制：PDF 40 MiB，Markdown 5 MiB。');
+  const pdf=main?/\.pdf$/i.test(main.name):isPdf();
+  const text=main&&!pdf?await main.text():$('editor').value;
+  let nextPath=main?(main.webkitRelativePath||main.name):sourcePath;
   const images=files.filter(f=>/\.(png|jpe?g|webp|gif|svg)$/i.test(f.name));
-  if(main&&!folder)resourceFiles=[];
-  // Replacing an imported directory also replaces earlier versions of its files.
-  const map=new Map(resourceFiles.map(f=>[f.webkitRelativePath||f.name,f]));for(const f of images)map.set(f.webkitRelativePath||f.name,f);resourceFiles=[...map.values()];
-  resources=await buildResourceIndex(resourceFiles);
-  if(folder&&file){const matches=docs.filter(f=>f.name===file.name);if(matches.length===1)sourcePath=matches[0].webkitRelativePath||matches[0].name;}
-  if(!state.isCurrent(id))return;showFile();await convert(id);
+  const paths=new Set(images.map(f=>f.webkitRelativePath||f.name));
+  const nextFiles=(main&&!folder?[]:resourceFiles).filter(f=>!paths.has(f.webkitRelativePath||f.name)).concat(images);
+  const index=await buildResourceIndex(nextFiles);
+  const nextFile=main||file;
+  if(folder&&nextFile){const matches=docs.filter(f=>f.name===nextFile.name);if(matches.length===1)nextPath=matches[0].webkitRelativePath||matches[0].name;}
+  if(!state.isCurrent(id))return;
+  if(main){releasePdf();file=main;if(pdf){pdfUrl=URL.createObjectURL(main);$('pdf-source').data=pdfUrl;}else $('editor').value=text;}
+  sourcePath=nextPath;resourceFiles=nextFiles;resources=index;showFile();await convert(id);
  }catch(error){if(state.isCurrent(id)){$('preview-loading').hidden=true;status(error.message,true);}}
  $('file-input').value='';$('folder-input').value='';
 }

@@ -51,6 +51,14 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('墨页', body.decode('utf-8'))
 
+    def test_second_server_cannot_claim_same_port(self):
+        second=None
+        try:
+            with self.assertRaises(OSError):
+                second=create_server(self.port)
+        finally:
+            if second:second.server_close()
+
 
 if __name__ == '__main__':
     unittest.main()

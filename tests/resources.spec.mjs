@@ -12,3 +12,12 @@ test('relative image paths are exact and SVG is sanitized',async({page})=>{
  const decoded=Buffer.from(r[0].dataUrl.split(',')[1],'base64').toString();expect(decoded).not.toMatch(/script|onload|evil.example/);
  expect(r[1].dataUrl).toBeNull();expect(r[2].dataUrl).toBeNull();
 });
+test('size limits reject large documents before parsing or image decoding',async({page})=>{
+ await page.goto('/');const r=await page.evaluate(async()=>{
+  const {buildResourceIndex}=await import('/modules/resources.js');const {renderMarkdown}=await import('/modules/markdown.js');
+  let assets=false,md=false;
+  try{await buildResourceIndex([new File([new Uint8Array(80*1024*1024+1)],'huge.png',{type:'image/png'})]);}catch(e){assets=e.message.includes('80 MiB');}
+  try{renderMarkdown('a'.repeat(5*1024*1024+1),null,'huge.md');}catch(e){md=e.message.includes('5 MiB');}
+  return {assets,md};
+ });expect(r).toEqual({assets:true,md:true});
+});

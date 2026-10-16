@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 import re
 import unittest
+from pathlib import Path
 from PIL import Image
 from folio.pdf_converter import convert_pdf, ConversionError
 from pdf_fixtures import make_pdf
@@ -28,6 +29,11 @@ class PdfFaithfulTests(unittest.TestCase):
     def test_limits_and_invalid_input(self):
         for data,kwargs in [(b'not a PDF',{}),(b'%PDF broken',{}),(make_pdf(),{'dpi':72}),(make_pdf(),{'mode':'invalid'}),(make_pdf(pages=81),{})]:
             with self.subTest(kwargs=kwargs),self.assertRaises(ConversionError):convert_pdf(data,**kwargs)
+
+    def test_encrypted_pdf_has_actionable_error(self):
+        encrypted=Path(__file__).parent/'fixtures'/'encrypted.pdf'
+        with self.assertRaisesRegex(ConversionError,'加密'):
+            convert_pdf(encrypted.read_bytes())
 
 
 if __name__=='__main__':unittest.main()

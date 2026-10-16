@@ -15,6 +15,15 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / 'web'
 
 
+class LocalHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = sys.platform != 'win32'
+
+    def server_bind(self):
+        if sys.platform == 'win32':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = 'Folio/1.0'
 
@@ -105,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def create_server(port=8765):
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    server = LocalHTTPServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
     server.pdf_lock = threading.Lock()
     server.pdf_timeout = PDF_TIMEOUT_SECONDS

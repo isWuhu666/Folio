@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 function Check-Exit([string]$Step) {
     if ($LASTEXITCODE -ne 0) { throw "$Step failed. Fix the error above and run install again." }
