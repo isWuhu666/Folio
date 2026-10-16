@@ -14,7 +14,7 @@ class PdfReadingTests(unittest.TestCase):
         self.assertEqual(table['bodyHtml'].split('<details')[0].count('Voltage'),1)
 
     def test_complex_and_scanned_pages_fall_back(self):
-        for kind in ['scan','columns','math','rotated']:
+        for kind in ['scan','columns','math','rotated','cropped','superscript']:
             with self.subTest(kind=kind):
                 r=convert_pdf(make_pdf(kind),mode='reading')
                 self.assertIn('<img',r['bodyHtml'])

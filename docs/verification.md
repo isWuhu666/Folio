@@ -6,8 +6,8 @@
 
 | 检查 | 命令或方法 | 结果 |
 | --- | --- | --- |
-| Python 服务 / PDF | `.venv\Scripts\python.exe -m unittest discover -s tests -v` | 13 个测试通过 |
-| 实际浏览器 | `npm.cmd test` | 16 个测试通过 |
+| Python 服务 / PDF | `.venv\Scripts\python.exe -m unittest discover -s tests -v` | 最终 15 个测试通过 |
+| 实际浏览器 | `npm.cmd test` | 最终 19 个测试通过 |
 | Python 依赖一致性 | `.venv\Scripts\python.exe -m pip check` | No broken requirements found |
 | 安装入口 | 在已有 Python 环境与 npm 缓存中运行 `scripts/install.ps1`，禁用网络索引 / 启用 npm offline | 完整执行成功，重新安装锁定 npm 包并准备本地资源 |
 | 启动路径 | 在含中文与空格的临时目录中，通过实际 `启动.cmd` 启动并请求健康接口 | 返回 status=ok；测试进程树清理由沙箱外工具单独完成 |
@@ -54,4 +54,10 @@
 
 ## 代码审阅
 
-实现与测试整理后进行一次独立的完整分支审阅；最终审阅结果及修复记录在交付前补充。本节不把尚未执行的审阅写成通过。
+已对 `0905308..dddf71a` 完成一次独立的完整分支审阅。发现四项 Important 和一项目录导航问题；目录问题因违反去重锚点约定而由执行者升级为 Important，一并进入修复。五项均先添加实际复现测试并观察失败，再修复为通过；修复后完整 Python 15/15、浏览器 19/19 通过。没有未处理的报告项；修复后的代码未再做第二次独立审阅，采用回归测试与完整套件验证。
+
+具体问题、处理方式与测试见 [code-review.md](code-review.md)。审阅者的 Declined to judge 列表为空。
+
+阶段性重跑曾出现一次 Windows TCP `WinError 10053`，发生在忙碌请求测试；之后单项与完整套件均通过，另增加上传请求体情况下的忙碌响应覆盖。该异常未稳定复现，因此不宣称已确定或修复其根因。最终通过结果是实际重跑得到的，不是忽略失败用例。
+
+最终决策及代价：复用独立的新项目目录，代价是没有额外工作树隔离；显式管理 Windows 测试服务，代价是修改 Python 后需重启测试服务；PDF 请求串行排队，代价是新操作等待当前任务；把目录碰撞升级为交付错误处理，代价是多实施一项回归修复。这些决策没有改变已确认的产品范围。

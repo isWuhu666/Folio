@@ -18,10 +18,12 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
   if(r.dataUrl){img.src=r.dataUrl;img.loading='lazy';img.decoding='async';}
   else{missingAssets.push(path);env.diagnostics.push(r.diagnostic);const marker=document.createElement('span');marker.className='missing-image';marker.textContent=`图片缺失：${img.alt||path}`;img.replaceWith(marker);}
  }
- const toc=[],seen=new Map();
+ const toc=[],seen=new Map(),used=new Set();
  for(const h of template.content.querySelectorAll('h1,h2,h3,h4,h5,h6')){
   const text=h.textContent,base=text.trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu,'-')||'section';
-  const count=(seen.get(base)||0)+1;seen.set(base,count);h.id=base+(count>1?'-'+count:'');toc.push({id:h.id,text,level:Number(h.tagName[1])});
+  let count=(seen.get(base)||0)+1,id=base+(count>1?'-'+count:'');
+  while(used.has(id)){count++;id=base+'-'+count;}
+  seen.set(base,count);used.add(id);h.id=id;toc.push({id,text,level:Number(h.tagName[1])});
  }
  for(const a of template.content.querySelectorAll('a')){if(!a.getAttribute('href')?.startsWith('#'))a.rel='noopener noreferrer';}
  const byId=new Map(env.math.map(m=>[m.id,m]));

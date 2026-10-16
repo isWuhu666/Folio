@@ -37,5 +37,10 @@ class PdfApiTests(unittest.TestCase):
         finally:self.server.pdf_timeout=previous
         self.assertEqual(self.post(make_pdf())[0],200)
 
+    def test_busy_response_survives_an_uploaded_body(self):
+        self.server.pdf_lock.acquire()
+        try:self.assertEqual(self.post(b'%PDF-'+b'\0'*262144)[0],503)
+        finally:self.server.pdf_lock.release()
+
 
 if __name__=='__main__':unittest.main()

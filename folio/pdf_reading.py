@@ -2,7 +2,9 @@ import base64
 from html import escape
 from io import BytesIO
 import re
+from bisect import bisect_left, bisect_right
 from statistics import median
+from .pdf_geometry import standard_page_box
 
 
 def _inside(x,y,box):
@@ -12,6 +14,7 @@ def _inside(x,y,box):
 def classify_page(page):
     reasons=[]
     if page.rotation:reasons.append('旋转页面')
+    if not standard_page_box(page):reasons.append('裁切或页面坐标变换')
     if len(page.chars)<20:reasons.append('扫描页或缺少可提取的文字')
     if any(re.search(r'symbol|cmmi|cmsy|cmex|math',c.get('fontname',''),re.I) for c in page.chars):
         reasons.append('数学符号或专用公式字体')
@@ -30,13 +33,19 @@ def classify_page(page):
         row.sort(key=lambda w:w['x0'])
         if any(b['x0']-a['x1']>page.width*.16 for a,b in zip(row,row[1:])):separated+=1
     if separated>=3:reasons.append('多栏或分离的阅读顺序')
-    # Adjacent small glyphs raised above a main baseline are unsafe to flatten.
-    for row in rows.values():
-        row.sort(key=lambda w:w['x0'])
-        for a,b in zip(row,row[1:]):
-            ha,hb=a['bottom']-a['top'],b['bottom']-b['top']
-            if 0<=b['x0']-a['x1']<8 and min(ha,hb)<max(ha,hb)*.72 and abs(a['bottom']-b['bottom'])>3:
+    # A raised/lowered small glyph is normally in a DIFFERENT top-coordinate row.
+    # Search horizontal neighbours across vertically overlapping intervals instead.
+    ordered=sorted(words,key=lambda w:w['x0']);starts=[w['x0'] for w in ordered]
+    for a in ordered:
+        ha=a['bottom']-a['top']
+        if ha<=0 or a['x1']-a['x0']<=.1:continue
+        lo=bisect_left(starts,a['x1']-2);hi=bisect_right(starts,a['x1']+max(8,ha*.65))
+        for b in ordered[lo:hi]:
+            hb=b['bottom']-b['top']
+            nearby=b['bottom']>=a['top']-ha*.25 and b['top']<=a['bottom']+ha*.25
+            if b is not a and 0<hb<ha*.78 and nearby and abs(a['bottom']-b['bottom'])>2:
                 reasons.append('上下标布局');break
+        if '上下标布局' in reasons:break
     return {'safe':not reasons,'reasons':list(dict.fromkeys(reasons))}
 
 

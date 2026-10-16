@@ -26,13 +26,16 @@ def make_pdf(kind='simple', pages=1):
                     content += f'BT /F1 12 Tf {x} {y} Td ({text}) Tj ET\n'.encode()
             if kind == 'math':
                 content += b'BT /F3 22 Tf 40 300 Td (S) Tj ET BT /F1 10 Tf 55 315 Td (2) Tj ET\n'
+            if kind == 'superscript':
+                content += b'BT /F1 12 Tf 40 300 Td (E = mc) Tj ET BT /F1 7 Tf 80 307 Td (2) Tj ET\n'
             if kind == 'columns':
                 for y in range(330, 130, -20):
                     content += f'BT /F1 10 Tf 30 {y} Td (Left column) Tj ET BT /F1 10 Tf 210 {y} Td (Right column) Tj ET\n'.encode()
         objects.append(b'<< /Length ' + str(len(content)).encode() + b' >>\nstream\n' + content + b'\nendstream')
         stream_id = len(objects)
         rotation = '/Rotate 90' if kind == 'rotated' else ''
-        objects.append(f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] {rotation} /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> {image_ref} >> /Contents {stream_id} 0 R >>'.encode())
+        crop = '/CropBox [20 20 340 460]' if kind == 'cropped' else ''
+        objects.append(f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] {rotation} {crop} /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> {image_ref} >> /Contents {stream_id} 0 R >>'.encode())
         page_ids.append(len(objects))
     objects[0] = b'<< /Type /Catalog /Pages 2 0 R >>'
     objects[1] = f'<< /Type /Pages /Kids [{" ".join(f"{i} 0 R" for i in page_ids)}] /Count {pages} >>'.encode()

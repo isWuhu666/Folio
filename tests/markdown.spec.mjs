@@ -18,3 +18,12 @@ test('untrusted HTML and external resources stay inert',async({page})=>{
  expect(r.bodyHtml).not.toMatch(/<script|onerror|<iframe|src="https:/);expect(r.missingAssets.length).toBeGreaterThan(0);
  expect(await page.evaluate(()=>window.pwned)).toBeUndefined();
 });
+test('currency prefix cannot swallow later code or formulas',async({page})=>{
+ const results=await page.evaluate(async()=>{const {renderMarkdown}=await import('/modules/markdown.js');return ['Price $20 and formula $x$.','Price $20, code `$raw$`, formula $x$.'].map(s=>renderMarkdown(s,null,'x.md'));});
+ for(const r of results){expect(r.math.map(m=>m.tex)).toEqual(['x']);expect(r.bodyHtml).toContain('Price $20');}
+ expect(results[1].bodyHtml).toContain('<code>$raw$</code>');
+});
+test('heading slugs cannot collide with numbered headings',async({page})=>{
+ const r=await page.evaluate(async()=>{const {renderMarkdown}=await import('/modules/markdown.js');return renderMarkdown('# Foo\n\n# Foo\n\n# Foo-2',null,'x.md');});
+ expect(r.toc.map(h=>h.id)).toEqual(['foo','foo-2','foo-2-2']);
+});

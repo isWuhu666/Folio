@@ -21,3 +21,14 @@ test('size limits reject large documents before parsing or image decoding',async
   return {assets,md};
  });expect(r).toEqual({assets:true,md:true});
 });
+test('literal percent filenames and URL encoded spaces stay distinct',async({page})=>{
+ await page.goto('/');const r=await page.evaluate(async()=>{
+  const {buildResourceIndex,resolveResource}=await import('/modules/resources.js');
+  const make=(name,color)=>new File([`<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="${color}"/></svg>`],name,{type:'image/svg+xml'});
+  const idx=await buildResourceIndex([make('a%20b.svg','red'),make('a b.svg','blue')]);
+  return [resolveResource(idx,'a%2520b.svg','main.md'),resolveResource(idx,'a%20b.svg','main.md')];
+ });
+ expect(r[0].dataUrl).not.toBeNull();expect(r[1].dataUrl).not.toBeNull();
+ expect(Buffer.from(r[0].dataUrl.split(',')[1],'base64').toString()).toContain('red');
+ expect(Buffer.from(r[1].dataUrl.split(',')[1],'base64').toString()).toContain('blue');
+});

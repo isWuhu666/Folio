@@ -35,5 +35,11 @@ class PdfFaithfulTests(unittest.TestCase):
         with self.assertRaisesRegex(ConversionError,'加密'):
             convert_pdf(encrypted.read_bytes())
 
+    def test_cropped_page_disables_untransformed_text_layer(self):
+        r=convert_pdf(make_pdf('cropped'))
+        self.assertEqual((r['pages'][0]['width'],r['pages'][0]['height']),(320,440))
+        self.assertFalse('class="pdf-text-layer"' in r['bodyHtml'])
+        self.assertTrue(any(d['code']=='text-layer-skipped' for d in r['diagnostics']))
+
 
 if __name__=='__main__':unittest.main()

@@ -11,7 +11,7 @@ export function mathPlugin(md){
   let end=pos+open.length;
   while((end=src.indexOf(close,end))>=0){
    if(src[end-1]==='\\'){end+=close.length;continue;}
-   if(open==='$'&&(/\s/.test(src[end-1])||/\d/.test(src[end+1]||''))){end++;continue;}
+   if(open==='$'&&(/\s/.test(src[end-1])||/\d/.test(src[end+1]||'')||src.slice(pos+1,end).includes('`')))return false;
    break;
   }
   if(end<0||(!display&&src.slice(pos,end).includes('\n'))){

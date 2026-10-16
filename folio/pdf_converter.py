@@ -7,6 +7,7 @@ import pdfplumber
 import pypdfium2 as pdfium
 
 from .limits import MAX_PDF_BYTES, MAX_PAGES
+from .pdf_geometry import standard_page_box
 
 
 class ConversionError(ValueError):
@@ -25,8 +26,9 @@ def render_faithful_page(pdfium_page,plumber_page,dpi,page_number):
     stream=BytesIO();image.save(stream,format='PNG')
     data_url='data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')
     diagnostics=[];spans=[]
-    if plumber_page.rotation:
-        diagnostics.append({'code':'text-layer-skipped','page':page_number,'message':f'第 {page_number} 页有旋转，保留原页外观并关闭定位不可靠的文字层。'})
+    if plumber_page.rotation or not standard_page_box(plumber_page,(width,height)):
+        reason='旋转' if plumber_page.rotation else '裁切或坐标变换'
+        diagnostics.append({'code':'text-layer-skipped','page':page_number,'message':f'第 {page_number} 页有{reason}，保留原页外观并关闭定位不可靠的文字层。'})
     elif plumber_page.chars:
         for word in plumber_page.extract_words(extra_attrs=['size']):
             x,y=float(word['x0']),float(word['top']);size=float(word['size'])

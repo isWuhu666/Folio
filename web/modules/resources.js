@@ -1,7 +1,6 @@
 const MAX_ASSETS=80*1024*1024;
 const raster=new Set(['image/png','image/jpeg','image/webp','image/gif']);
-function normalize(path){
- let s;try{s=decodeURIComponent(path);}catch{return null;}
+function normalize(s){
  if(/^[a-z][a-z\d+.-]*:|^\/|^\\/i.test(s))return null;
  const parts=[];
  for(const p of s.replaceAll('\\','/').split('/')){
@@ -47,8 +46,11 @@ export function resolveResource(index,path,sourcePath=''){
  const missing=message=>({dataUrl:null,diagnostic:{code:'image-missing',source:path,message}});
  if(/^data:/i.test(path))return missing('请将内嵌图片作为本地图片文件导入，以便校验格式。');
  if(/^[a-z][a-z\d+.-]*:|^\/\//i.test(path))return missing(`外链图片未下载：${path}`);
+ let reference;
+ try{reference=decodeURIComponent(path.split('#')[0]);}catch{return missing(`图片 URL 编码无效：${path}`);}
+ if(/^[a-z][a-z\d+.-]*:|^[\/\\]/i.test(reference))return missing(`图片路径不是相对路径：${path}`);
  const base=sourcePath.split('/').slice(0,-1).join('/');
- const key=normalize((base?base+'/':'')+path.split('#')[0]);
+ const key=normalize((base?base+'/':'')+reference);
  if(!key)return missing(`图片路径超出导入目录：${path}`);
  const values=index?.entries.get(key);
  if(!values||values.length!==1)return missing(`请补充图片或检查重复路径：${key}`);
