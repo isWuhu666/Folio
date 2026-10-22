@@ -26,6 +26,7 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
    cursor=formula.range.end;
   }
  }
+ const byBlock=new Map(blocks.map(block=>[block.id,block]));
  const rendered=md.renderer.render(tokens,md.options,env);
  const clean=DOMPurify.sanitize(rendered,{ALLOW_DATA_ATTR:false,FORBID_TAGS:['style','iframe','object','embed','video','audio','source','svg','math','form','input','button','meta','link','base'],FORBID_ATTR:['style','srcset','poster'],ADD_ATTR:['data-folio-internal']});
  const template=document.createElement('template');template.innerHTML=clean;
@@ -34,7 +35,7 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
   if(!value.startsWith(env.nonce+':'))continue;
   const id=value.slice(env.nonce.length+1);
   if(byMath.has(id))el.dataset.folioMath=id;
-  else if(blocks.some(b=>b.id===id))el.dataset.folioBlock=id;
+  else if(byBlock.has(id))el.dataset.folioBlock=id;
  }
  const missingAssets=[];
  for(const img of template.content.querySelectorAll('img')){
@@ -42,7 +43,7 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
   img.removeAttribute('src');
   if(r.dataUrl){img.src=r.dataUrl;img.loading='lazy';img.decoding='async';}
   else{
-   missingAssets.push(path);const blockId=img.closest('[data-folio-block]')?.dataset.folioBlock,block=blocks.find(b=>b.id===blockId);
+   missingAssets.push(path);const blockId=img.closest('[data-folio-block]')?.dataset.folioBlock,block=byBlock.get(blockId);
    const start=source.indexOf(path,block?.start||0),range=start>=0?{start,end:start+path.length}:block;
    const previewId=`folio-image-${env.diagnostics.length}`;
    env.diagnostics.push({...r.diagnostic,range,previewId});const marker=document.createElement('span');marker.id=previewId;marker.className='missing-image';marker.textContent=`图片缺失：${img.alt||path}`;img.replaceWith(marker);

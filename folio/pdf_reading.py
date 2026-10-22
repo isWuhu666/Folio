@@ -2,6 +2,7 @@ import base64
 from html import escape
 from io import BytesIO
 import re
+import math
 from bisect import bisect_left, bisect_right
 from statistics import median
 from .pdf_geometry import standard_page_box
@@ -11,10 +12,28 @@ def _inside(x,y,box):
     return box[0]<=x<=box[2] and box[1]<=y<=box[3]
 
 
+def has_non_horizontal_text(page):
+    """The horizontal HTML paths cannot preserve rotated/reversed text matrices."""
+    for char in page.chars:
+        if not char.get('text','').strip():continue
+        matrix=char.get('matrix')
+        if matrix is None:
+            if not char.get('upright',True):return True
+            continue
+        a,b,c,d=matrix[:4]
+        # Compare the baseline direction, independent of font size or scaling.
+        # Allow only matrix roundoff (about .006 degrees), not an angle bucket;
+        # the c component may legitimately shear an ordinary italic glyph.
+        if not all(math.isfinite(v) for v in (a,b,c,d)):return True
+        if a<=0 or d<=0 or abs(b)>math.hypot(a,b)*1e-4:return True
+    return False
+
+
 def classify_page(page):
     reasons=[]
     if page.rotation:reasons.append('旋转页面')
     if not standard_page_box(page):reasons.append('裁切或页面坐标变换')
+    if has_non_horizontal_text(page):reasons.append('非正常横排文字方向（旋转、反向或镜像）')
     if len(page.chars)<20:reasons.append('扫描页或缺少可提取的文字')
     if any(re.search(r'symbol|cmmi|cmsy|cmex|math',c.get('fontname',''),re.I) for c in page.chars):
         reasons.append('数学符号或专用公式字体')
