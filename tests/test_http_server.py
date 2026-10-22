@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import socket
 import threading
 import unittest
 
@@ -12,6 +13,18 @@ from folio.http_server import create_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_browser_connection_burst_can_queue_before_accepting(self):
+        server=create_server(0)
+        clients=[]
+        try:
+            # A browser can start several asset connections while accept is briefly busy.
+            for _ in range(12):
+                client=socket.socket();clients.append(client);client.settimeout(.5)
+                client.connect(server.server_address)
+        finally:
+            for client in clients:client.close()
+            server.server_close()
+
     @classmethod
     def setUpClass(cls):
         cls.server = create_server(0)
