@@ -269,6 +269,10 @@ def create_server(port=8765):
 
 
 def main(argv=None):
+    # Piped Windows consoles may use CP1252; diagnostics must not stop the service.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(errors='backslashreplace')
     parser = argparse.ArgumentParser(description='墨页 Folio 本地文档转换器')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--no-browser', action='store_true')

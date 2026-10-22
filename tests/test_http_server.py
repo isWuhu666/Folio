@@ -1,5 +1,10 @@
 import http.client
 import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
 import threading
 import unittest
 
@@ -33,6 +38,30 @@ class ServerTests(unittest.TestCase):
         status, body = self.request('/api/health')
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)['status'], 'ok')
+
+    def test_cli_starts_with_a_western_console_encoding(self):
+        env = {**os.environ, 'PYTHONIOENCODING': 'cp1252:strict'}
+        process = subprocess.Popen(
+            [sys.executable, 'server.py', '--port', '0', '--no-browser'],
+            cwd=Path(__file__).resolve().parent.parent, env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        try:
+            line = process.stdout.readline()
+            match = re.search(rb'http://127\.0\.0\.1:(\d+)', line)
+            self.assertIsNotNone(match, 'CLI terminated before announcing a usable local URL')
+            connection = http.client.HTTPConnection('127.0.0.1', int(match[1]), timeout=5)
+            try:
+                connection.request('GET', '/api/health')
+                response = connection.getresponse()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(json.loads(response.read())['status'], 'ok')
+            finally:
+                connection.close()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+            process.communicate(timeout=10)
 
     def test_rejects_foreign_host_or_origin(self):
         self.assertEqual(self.request('/', {'Host': 'evil.example'})[0], 403)
