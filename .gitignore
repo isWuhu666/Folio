@@ -7,3 +7,25 @@ test-results/
 playwright-report/
 artifacts/
 .superpowers/
+
+build/
+dist/
+
+# Android generated assets, caches and local signing material
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/www/
+*.keystore
+*.jks
+.tools/
+
+# Credentials and private signing material (public certificates are allowed)
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.key
+*signing-profile*.json
+*credentials*.json
+!.github/ISSUE_TEMPLATE/*.yml

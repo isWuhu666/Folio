@@ -1,0 +1,55 @@
+name: Test and Windows portable
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-build.txt
+          npm ci
+          npm run prepare:vendor
+          npx playwright install chromium
+      - name: Python behavior tests
+        run: .\.venv\Scripts\python.exe -m unittest discover -s tests
+      - name: Browser behavior tests
+        env:
+          FOLIO_BROWSER_CHANNEL: chromium
+        run: npm test
+      - name: Build and smoke portable app
+        shell: pwsh
+        run: ./scripts/build-release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Folio-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-diagnostics
+          path: |
+            test-results
+            artifacts/*.log
+          retention-days: 7

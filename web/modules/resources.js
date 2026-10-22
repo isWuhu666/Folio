@@ -22,6 +22,7 @@ function svgData(text){
  return 'data:image/svg+xml;base64,'+btoa(binary);
 }
 export async function buildResourceIndex(files){
+ if(files.length>256)throw new Error('图片数量超过 256 个，请分批处理。');
  if(files.reduce((n,f)=>n+f.size,0)>MAX_ASSETS)throw new Error('图片总量超过 80 MiB，请减少文件。');
  const index={entries:new Map(),diagnostics:[]};
  for(const f of files){
@@ -29,18 +30,23 @@ export async function buildResourceIndex(files){
   const path=normalize(f.webkitRelativePath||f.name);
   if(!path)continue;
   try{
+   if(f.size>(/\.svg$/i.test(f.name)?2:20)*1024*1024)throw new Error('图片过大，SVG 上限 2 MiB，其他图片上限 20 MiB');
    let url;
    if(/\.svg$/i.test(f.name))url=svgData(await f.text());
    else{
     const type=f.type||({'png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','gif':'image/gif','webp':'image/webp'}[f.name.split('.').at(-1).toLowerCase()]);
     if(!raster.has(type))throw new Error('不支持的图片格式');
     const blob=new Blob([f],{type});
-    const bitmap=await createImageBitmap(blob);bitmap.close();url=await dataUrl(blob);
+    const bitmap=await createImageBitmap(blob);const pixels=bitmap.width*bitmap.height;bitmap.close();
+    if(pixels>20000000)throw new Error('图片超过 2000 万像素，请先缩小图片');url=await dataUrl(blob);
    }
    const values=index.entries.get(path)||[];values.push(url);index.entries.set(path,values);
   }catch(e){index.diagnostics.push({code:'image-invalid',source:path,message:`图片 ${path}：${e.message}`});}
  }
  return index;
+}
+export function resourceKey(path,sourcePath=''){
+ try{const reference=decodeURIComponent(path.split('#')[0]);if(/^[a-z][a-z\d+.-]*:|^[\/\\]/i.test(reference))return null;const base=sourcePath.split('/').slice(0,-1).join('/');return normalize((base?base+'/':'')+reference);}catch{return null;}
 }
 export function resolveResource(index,path,sourcePath=''){
  const missing=message=>({dataUrl:null,diagnostic:{code:'image-missing',source:path,message}});

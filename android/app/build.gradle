@@ -1,0 +1,41 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.folio.offline'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'app.folio.offline'
+        minSdk 26
+        targetSdk 35
+        versionCode 10200
+        versionName '1.2.0'
+        testInstrumentationRunner 'app.folio.offline.RuntimeSmoke'
+    }
+    testBuildType 'release'
+    signingConfigs {
+        localSigning {
+            storeFile file(System.getenv('FOLIO_ANDROID_KEYSTORE') ?: '../../../.tools/folio-development.keystore')
+            storePassword System.getenv('FOLIO_ANDROID_STORE_PASSWORD') ?: 'android'
+            keyAlias System.getenv('FOLIO_ANDROID_KEY_ALIAS') ?: 'androiddebugkey'
+            keyPassword System.getenv('FOLIO_ANDROID_KEY_PASSWORD') ?: (System.getenv('FOLIO_ANDROID_STORE_PASSWORD') ?: 'android')
+        }
+    }
+    buildTypes {
+        release {
+            debuggable false
+            minifyEnabled false
+            signingConfig signingConfigs.localSigning
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies { implementation 'androidx.webkit:webkit:1.14.0' }
+
+tasks.register('exportStateTest', JavaExec) {
+    dependsOn 'compileReleaseUnitTestJavaWithJavac'
+    classpath = files('build/intermediates/javac/releaseUnitTest/compileReleaseUnitTestJavaWithJavac/classes',
+                      'build/intermediates/javac/release/compileReleaseJavaWithJavac/classes')
+    mainClass = 'app.folio.offline.ExportStateTest'
+}

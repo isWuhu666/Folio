@@ -1,0 +1,16 @@
+name: Feature request
+description: Describe a user problem and a proposed outcome
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow and constraints without private documents.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome and alternatives
+    validations:
+      required: true

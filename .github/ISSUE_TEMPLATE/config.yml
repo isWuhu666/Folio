@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/isWuhu666/Folio/security/policy
+    about: Report suspected vulnerabilities privately; do not upload sensitive documents.

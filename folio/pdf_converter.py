@@ -2,6 +2,7 @@ import base64
 from html import escape
 from io import BytesIO
 import math
+import re
 
 import pdfplumber
 import pypdfium2 as pdfium
@@ -39,7 +40,26 @@ def render_faithful_page(pdfium_page,plumber_page,dpi,page_number):
     return {'html':html,'width':width,'height':height,'diagnostics':diagnostics,'_image':image}
 
 
-def convert_pdf(data,mode='faithful',dpi=144):
+def select_pages(selection, count):
+    if not selection:
+        if count > MAX_PAGES:
+            raise ConversionError('PDF 超过 80 页，请选择页码范围。',413)
+        return list(range(1,count+1))
+    if not isinstance(selection,str) or len(selection)>1000:
+        raise ConversionError('页码范围无效。')
+    chosen=set()
+    for item in selection.split(','):
+        match=re.fullmatch(r'\s*([0-9]+)(?:\s*-\s*([0-9]+))?\s*',item)
+        if not match:raise ConversionError('页码范围无效，请使用 1-3,5 格式。')
+        first=int(match[1]);last=int(match[2] or match[1])
+        if not 1<=first<=last<=count:raise ConversionError('页码超出文档范围或顺序无效。')
+        if last-first+1>MAX_PAGES:raise ConversionError('每次最多转换 80 页。',413)
+        chosen.update(range(first,last+1))
+        if len(chosen)>MAX_PAGES:raise ConversionError('每次最多转换 80 页。',413)
+    return sorted(chosen)
+
+
+def convert_pdf(data,mode='faithful',dpi=144,pages=None,progress=None):
     if mode not in ('faithful','reading'):raise ConversionError('请选择保真或阅读模式。')
     if dpi not in (96,144,192):raise ConversionError('分辨率仅支持 96、144 或 192 DPI。')
     if len(data)>MAX_PDF_BYTES:raise ConversionError('PDF 超过 40 MiB，请拆分文档。',413)
@@ -51,11 +71,13 @@ def convert_pdf(data,mode='faithful',dpi=144):
     try:
         count=len(document)
         if not count:raise ConversionError('PDF 没有可转换的页面。')
-        if count>MAX_PAGES:raise ConversionError('PDF 超过 80 页，请拆分文档。',413)
+        selected=select_pages(pages,count)
+        if progress:progress({'stage':'converting','completed':0,'total':len(selected)})
         pages=[];parts=[];diagnostics=[];pixels=0
         with pdfplumber.open(BytesIO(data)) as source:
             title=str((source.metadata or {}).get('Title') or 'PDF 文档')[:200]
-            for n in range(count):
+            for completed, number in enumerate(selected,1):
+                n=number-1
                 page=document[n]
                 try:
                     w,h=page.get_size();pixels+=w*h*(dpi/72)**2
@@ -72,8 +94,9 @@ def convert_pdf(data,mode='faithful',dpi=144):
                         pages.append({'number':n+1,'width':result['width'],'height':result['height']})
                     finally:result['_image'].close()
                     source.pages[n].close()
+                    if progress:progress({'stage':'converting','completed':completed,'total':len(selected)})
                 finally:page.close()
-        return {'title':title,'mode':mode,'pageCount':count,'bodyHtml':''.join(parts),'diagnostics':diagnostics,'pages':pages}
+        return {'title':title,'mode':mode,'pageCount':len(selected),'sourcePageCount':count,'bodyHtml':''.join(parts),'diagnostics':diagnostics,'pages':pages}
     except ConversionError:raise
     except Exception as exc:
         raise ConversionError('PDF 转换失败，可能含有不支持的内容或已损坏。请尝试重新导出文件。') from exc

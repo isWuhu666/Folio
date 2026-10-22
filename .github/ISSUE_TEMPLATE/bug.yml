@@ -1,0 +1,29 @@
+name: Bug report
+description: Reproduce a problem using synthetic documents
+body:
+  - type: markdown
+    attributes:
+      value: Do not upload private documents, browser storage, control tokens, personal file paths or unredacted logs. Report vulnerabilities privately using SECURITY.md.
+  - type: input
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Folio version/revision, Windows or Android version, browser/WebView version, portable/APK/source
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps and minimal synthetic example
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted screenshots or errors

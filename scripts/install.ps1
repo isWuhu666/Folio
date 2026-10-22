@@ -8,7 +8,7 @@ try {
         py -m venv .venv
         Check-Exit 'Create Python environment'
     }
-    & '.\.venv\Scripts\python.exe' -m pip install -r requirements.txt
+    & '.\.venv\Scripts\python.exe' -m pip install -r requirements.txt -r requirements-desktop.txt
     Check-Exit 'Install Python dependencies'
     npm.cmd ci
     Check-Exit 'Install browser dependencies'

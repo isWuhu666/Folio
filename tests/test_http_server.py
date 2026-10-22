@@ -59,6 +59,27 @@ class ServerTests(unittest.TestCase):
         finally:
             if second:second.server_close()
 
+    def test_shutdown_waits_for_pdf_and_rejects_foreign_origin(self):
+        self.server.control_token = 'local-control-test'
+        self.server.pdf_lock.acquire()
+        try:
+            for origin, expected in [(None, 409), ('https://evil.example', 403)]:
+                headers = {'X-Folio-Control': 'local-control-test'}
+                if origin:
+                    headers['Origin'] = origin
+                connection = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)
+                try:
+                    connection.request('POST', '/api/shutdown', body=b'', headers=headers)
+                    response = connection.getresponse()
+                    response.read()
+                    self.assertEqual(response.status, expected)
+                finally:
+                    connection.close()
+            self.assertEqual(self.request('/api/health')[0], 200)
+        finally:
+            self.server.pdf_lock.release()
+            self.server.control_token = None
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -7,7 +7,7 @@ test('structure, math delimiters and code exclusions',async({page})=>{
  });
  expect(r.math.map(m=>m.tex)).toEqual(['x_1','y_2','\\frac{1}{2}','z^2']);
  expect(r.toc).toHaveLength(2);expect(r.toc[0].id).not.toBe(r.toc[1].id);
- expect(r.bodyHtml).toContain('<table>');expect(r.bodyHtml).toContain('footnote');expect(r.bodyHtml).toContain('$code$');
+ expect(r.bodyHtml).toMatch(/<table(?:\s|>)/);expect(r.bodyHtml).toContain('footnote');expect(r.bodyHtml).toContain('$code$');
 });
 test('currency, escapes and unclosed math preserve text',async({page})=>{
  const r=await page.evaluate(async()=>{const {renderMarkdown}=await import('/modules/markdown.js');return renderMarkdown('价格 $20 和 $30，转义 \\$x\\$。\n\n$$未闭合\n\n后续正文',null,'x.md');});

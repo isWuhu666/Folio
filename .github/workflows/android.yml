@@ -1,0 +1,46 @@
+name: Android sideload APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Prepare pinned Gradle and SDK packages
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:RUNNER_TEMP 'folio-tools'
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          $zip = Join-Path $tools 'gradle-8.13-bin.zip'
+          Invoke-WebRequest https://services.gradle.org/distributions/gradle-8.13-bin.zip -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78') { throw 'Gradle SHA256 mismatch' }
+          Expand-Archive $zip $tools
+          & "$env:ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" 'platforms;android-35' 'build-tools;35.0.0'
+          if ($LASTEXITCODE) { throw 'SDK package setup failed' }
+      - name: Build development signed installable APK
+        shell: pwsh
+        run: ./scripts/build-android.ps1 -ToolsRoot (Join-Path $env:RUNNER_TEMP 'folio-tools')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Folio-1.2.0-android-development-sideload
+          path: |
+            dist/Folio-1.2.0-android.apk
+            dist/Folio-1.2.0-android.apk.sha256
+          if-no-files-found: error

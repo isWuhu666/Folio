@@ -11,24 +11,32 @@
 <body>
  <header class="topbar">
   <a class="brand" href="/" aria-label="墨页 Folio 首页"><span class="brand-mark">F<span></span></span><span>墨页 <b>Folio</b><small>文档排版工作台</small></span></a>
-  <div class="header-right"><span class="local-badge"><i></i>文件仅在本机处理</span><button id="example" class="button ghost">打开示例</button><button id="export" class="button primary" disabled><span aria-hidden="true">↧</span> 导出 HTML</button></div>
+  <div class="header-right"><span class="local-badge"><i></i>文件仅在本机处理</span><button id="example" class="button ghost" disabled>打开示例</button><button id="export" class="button primary" disabled><span aria-hidden="true">↧</span> 导出 HTML</button></div>
  </header>
- <div class="workspace">
-  <aside class="sidebar">
+ <dialog id="recovery" aria-labelledby="recovery-title"><h2 id="recovery-title">找到上次的本机草稿</h2><p id="recovery-description"></p><p>包含原文、已导入图片和排版设置，仅保存在此浏览器。清理浏览器数据后可能丢失。</p><div class="dialog-actions"><button id="restore-draft" class="button primary">恢复上次工作</button><button id="backup-draft" class="button ghost">先保存原文</button><button id="discard-draft" class="button ghost">放弃草稿并新建</button></div><p id="recovery-error" role="alert"></p></dialog>
+ <dialog id="replace-dialog" aria-labelledby="replace-title"><h2 id="replace-title">保留当前工作</h2><p id="replace-message">继续会替换当前工作，可先保存完整项目。</p><div class="dialog-actions"><button id="cancel-replace" class="button ghost">取消</button><button id="backup-replace" class="button ghost">保存项目后继续</button><button id="confirm-replace" class="button primary">继续</button></div></dialog>
+ <div class="workspace" inert>
+  <aside class="sidebar" id="settings-panel" aria-label="排版与资源设置">
    <div class="section-label">文档来源 <span>01</span></div>
    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="选择或拖入文档">
     <svg viewBox="0 0 32 36" width="29" height="33" fill="none" aria-hidden="true"><path d="M5 1h15l8 8v25H5z" stroke="currentColor" stroke-width="1.4"/><path d="M20 1v8h8M10 18h13M10 24h10" stroke="currentColor" stroke-width="1.4"/></svg>
     <strong>拖入你的文档</strong><span>Markdown 或 PDF</span><button id="choose" class="small-button" type="button">选择文档 <span aria-hidden="true">↗</span></button>
    </div>
-   <input id="file-input" type="file" accept=".md,.markdown,.pdf,.png,.jpg,.jpeg,.webp,.gif,.svg" multiple hidden>
+   <input id="file-input" type="file" accept=".md,.markdown,.pdf,.folio,.zip,.png,.jpg,.jpeg,.webp,.gif,.svg" multiple hidden>
    <button id="assets" class="resource-button">＋ 导入资源文件夹</button><input id="folder-input" type="file" webkitdirectory multiple hidden>
    <p class="field-help">可同时导入图片，保留相对路径。</p>
+   <div class="tool-grid"><button id="open-project" class="small-button">打开项目</button><button id="save-project" class="small-button">保存项目</button><button id="project-history" class="small-button">本机快照</button><button id="manage-resources" class="small-button">管理图片</button></div>
+   <input id="project-input" type="file" accept=".folio,.zip" hidden>
    <div class="sidebar-divider"></div>
    <div id="pdf-settings" hidden>
     <div class="section-label">PDF 转换</div>
     <label class="select-field">模式<select id="pdf-mode"><option value="faithful">保真 · 保留原页</option><option value="reading">阅读 · 尝试重排</option></select></label>
     <label class="select-field">分辨率<select id="pdf-dpi"><option value="96">96 DPI · 轻量</option><option value="144" selected>144 DPI · 标准</option><option value="192">192 DPI · 清晰</option></select></label>
-    <p class="field-help">保真页保留外观，清晰度受分辨率限制。复杂页可能回退。</p><div class="sidebar-divider"></div>
+    <label class="select-field">页码范围<input id="pdf-pages" placeholder="全部，例如 1-3,5" maxlength="400" aria-label="PDF 页码范围"></label>
+    <p class="field-help" id="pdf-mode-help">保真：原页图像＋可提取文字层，保留外观。阅读：重建简单段落和表格，复杂页回退。两者均不含 OCR，不生成可编辑 LaTeX。</p>
+    <div id="pdf-progress" hidden role="status"><progress id="pdf-progress-bar" max="1" value="0"></progress><span id="pdf-progress-label"></span><button id="cancel-pdf" class="small-button">取消转换</button></div>
+    <label class="select-field">核对原页<select id="pdf-review-page" aria-label="核对 PDF 页码"></select></label><button id="review-pdf" class="small-button">原文与结果逐页核对</button><button id="next-pdf-issue" class="small-button">下一处需核对页面</button>
+    <div class="sidebar-divider"></div>
    </div>
    <div class="section-label">排版主题 <span>02</span></div>
    <div class="theme-grid" role="group" aria-label="排版主题">
@@ -43,27 +51,39 @@
    <label class="range-field" for="line-height"><span>行距 <output id="line-height-value">1.8</output></span><input id="line-height" type="range" min="1.3" max="2.4" step="0.1" value="1.8"></label>
    <label class="range-field" for="content-width"><span>内容宽度 <output id="content-width-value">820 px</output></span><input id="content-width" type="range" min="480" max="1200" step="20" value="820"></label>
    <div class="sidebar-note"><span class="note-icon">∑</span><div><strong>专业公式，随页保存</strong><p>SVG 数学排版，图片与样式内嵌，导出后也能离线阅读。</p></div></div>
+   <details class="privacy-settings"><summary>本机草稿与隐私</summary><label><input type="checkbox" id="autosave" checked> 自动保存当前工作</label><p>保存原文、原始 PDF、图片和参数，直到手动清除或浏览器清理数据。不上传，也不加密；共用设备请清除草稿和项目快照。PDF 转换过程会使用本机临时文件。</p><button id="clear-draft" class="small-button">清除本机草稿、快照并关闭自动保存</button></details>
+   <p class="app-info"><span id="app-version">墨页 Folio</span><br>Windows 托盘可打开、重启或退出程序，并选择登录自启；关闭浏览器后服务仍可运行。</p>
   </aside>
   <main class="main-area">
    <div class="workspace-heading"><div><span class="eyebrow">YOUR WORDS, WELL COMPOSED</span><h1>让内容，清晰呈现<span>。</span></h1></div><div class="format-tags"><span>Markdown</span><span>PDF</span><span>→ HTML</span></div></div>
-   <div class="mobile-tabs"><button data-tab="source" class="active">原文</button><button data-tab="preview">预览</button><button data-tab="settings">设置</button></div>
+   <p class="workspace-description">将 Markdown 排版为独立 HTML，公式、表格与图片随页保存。PDF 可保留原页，或尝试阅读重排。</p>
+   <div class="document-bar"><label class="name-field">文档名<input id="document-name" value="未命名.md" maxlength="160" aria-label="文档名"></label><span id="document-origin" class="document-origin">示例文档</span><span id="save-state" role="status" aria-live="polite">示例未保存</span><div class="document-actions"><button id="open-document" class="button ghost">打开文档</button><button id="new-document" class="button ghost">新建</button><button id="save-source" class="button ghost">保存原文</button></div></div>
+   <div class="layout-toolbar"><div class="layout-buttons" role="group" aria-label="工作区布局"><button data-layout="edit" aria-pressed="false">编辑</button><button data-layout="compare" aria-pressed="true" class="active">对照</button><button data-layout="read" aria-pressed="false">阅读</button></div><label class="split-control">分栏<input id="split-ratio" type="range" min="30" max="70" value="45" aria-label="原文分栏比例"></label><span id="render-version">预览随输入更新</span></div>
+   <div class="mobile-tabs" role="group" aria-label="工作视图"><button data-tab="source" aria-pressed="true" aria-controls="source-panel" class="active">原文</button><button data-tab="preview" aria-pressed="false" aria-controls="preview-panel">预览</button><button data-tab="settings" aria-pressed="false" aria-controls="settings-panel">设置</button></div>
    <div class="panels">
-    <section class="panel source-panel">
+    <section class="panel source-panel" id="source-panel" aria-label="源文档">
      <div class="panel-toolbar"><span><i class="panel-dot"></i>源文档 <small id="source-type">MARKDOWN</small></span><span id="source-label" class="file-label">未命名.md</span></div>
      <div class="source-info"><span id="source-name">未命名.md</span><span id="source-meta">可直接编辑</span></div>
+     <div class="editor-tools"><label class="find-field"><span class="sr-only">查找原文</span><input id="find-text" type="search" placeholder="查找原文" maxlength="1000"></label><button id="find-next" class="small-button">下一个</button><label>编辑字号<select id="editor-size" aria-label="编辑字号"><option value="14">14</option><option value="15" selected>15</option><option value="16">16</option><option value="18">18</option><option value="20">20</option></select></label><button id="locate-preview" class="small-button" title="定位光标所在段落的预览">核对段落</button><span id="find-status" role="status"></span></div>
+     <div class="writing-tools"><button id="formula-help" class="small-button">公式模板与帮助</button><span>可粘贴截图 · Ctrl+S 保存项目 · Ctrl+Enter 核对段落</span></div>
      <textarea id="editor" aria-label="Markdown 源文档" spellcheck="false" placeholder="在这里粘贴 Markdown，或导入文档……"></textarea>
-     <object id="pdf-source" type="application/pdf" aria-label="PDF 原文" hidden></object>
+     <object id="pdf-source" type="application/pdf" aria-label="PDF 原文" hidden></object><div id="pdf-local-source" aria-label="安卓 PDF 原页预览" hidden></div>
      <div class="panel-foot"><span id="character-count">0 字符</span><span>自动更新预览 <i class="live-dot"></i></span></div>
     </section>
-    <section class="panel preview-panel">
+    <section class="panel preview-panel" id="preview-panel" aria-label="HTML 预览">
      <div class="panel-toolbar"><span><i class="panel-dot green"></i>HTML 预览 <small>LIVE</small></span><div class="view-switch"><button id="desktop-view" class="active" aria-label="桌面宽度">▱</button><button id="mobile-view" aria-label="手机宽度">▯</button></div></div>
-     <div class="preview-surface"><iframe id="preview" title="转换结果预览" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe><div id="preview-loading" class="preview-loading" hidden><div class="spinner"></div><span>正在排版…</span></div></div>
+     <div class="preview-surface"><iframe id="preview" title="转换结果预览" sandbox="allow-same-origin allow-modals"></iframe><div id="preview-loading" class="preview-loading" hidden><div class="spinner"></div><span id="loading-label">正在排版…</span></div></div>
      <div class="panel-foot"><span id="result-meta">等待文档</span><span>独立 HTML · 离线可读</span></div>
     </section>
    </div>
-   <details id="diagnostics" class="diagnostics" hidden><summary id="diagnostics-title">转换提示</summary><ul id="diagnostics-list"></ul><button id="export-missing" class="small-button" hidden>带缺失标记导出</button></details>
+   <details id="diagnostics" class="diagnostics" hidden><summary id="diagnostics-title">转换提示</summary><ul id="diagnostics-list"></ul><button id="export-missing" class="small-button" hidden>核对后带问题导出</button></details>
+   <input type="file" id="repair-input" accept=".png,.jpg,.jpeg,.webp,.gif,.svg" hidden>
+   <details class="quality-panel" id="quality-panel"><summary id="quality-summary">导出核对 · 等待内容</summary><div class="quality-fields"><label>导出文件名<input id="export-name" aria-label="导出文件名" maxlength="160" value="未命名"></label><label>图片预设<select id="export-profile"><option value="archive">高清存档 · 保留原图</option><option value="reading">日常阅读 · PNG 最宽 1920px</option><option value="share">小体积分享 · WebP 最宽 1280px</option></select></label><label>文件方式<select id="export-format"><option value="html">独立 HTML</option><option value="zip">HTML＋图片 ZIP</option></select></label><button id="print-document" class="small-button">打印 / 保存 PDF</button><p id="output-estimate" role="status"></p><p id="quality-details"></p><p>分享预设有损压缩，请核对公式和细线；SVG 与 GIF 保持原样。预设只修改成品，不改变项目原图。公式排版成功不代表数学内容正确。</p></div></details>
    <div class="statusbar"><span id="status" role="status" aria-live="polite">正在准备工作台…</span><span class="status-right">本地转换 <span>·</span> 无需上传</span></div>
   </main>
  </div>
+ <dialog id="resource-dialog" aria-labelledby="resource-title"><h2 id="resource-title">图片与引用</h2><p>按原文引用核对资源。替换保留路径；清理只移除未被当前 Markdown 使用的图片。</p><div id="resource-list"></div><div class="dialog-actions"><button id="remove-unused" class="button ghost">清理未使用图片</button><button id="close-resources" class="button primary">完成</button></div></dialog>
+ <dialog id="formula-dialog" aria-labelledby="formula-title"><h2 id="formula-title">插入公式</h2><p>行内用 <code>$x^2$</code>，独立公式用 <code>$$…$$</code>。支持常用 AMS 语法，不能直接编译完整 LaTeX 文档。</p><div class="dialog-actions"><button class="button ghost" data-formula="fraction">分式与根号</button><button class="button ghost" data-formula="matrix">矩阵</button><button class="button ghost" data-formula="cases">分段函数</button><button class="button ghost" data-formula="aligned">多行对齐</button></div><pre id="formula-example"></pre><p>预览中双击段落可定位原文；Ctrl+F 查找，Ctrl+Shift+E 导出 HTML。中文输入法组合期间不会触发编辑快捷键。</p><button id="close-formulas" class="button primary">关闭</button></dialog>
+ <dialog id="history-dialog" aria-labelledby="history-title"><h2 id="history-title">本机项目快照</h2><p>仅在点击“保存快照”后记录，保留最近 5 份、合计最多 150 MiB，超限淘汰旧快照。不上传、不加密，清理浏览器会丢失；重要工作仍请下载项目。</p><div id="history-list"></div><div class="dialog-actions"><button id="save-snapshot" class="button primary">保存当前快照</button><button id="clear-history" class="button ghost">清除全部快照</button><button id="close-history" class="button ghost">关闭</button></div></dialog>
  <noscript>请启用 JavaScript 以使用本机文档排版功能。</noscript>
 </body></html>

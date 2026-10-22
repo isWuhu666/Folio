@@ -10,9 +10,14 @@ for (const [src, dest] of [
   ['@highlightjs/cdn-assets/highlight.min.js','highlight.min.js'],
   ['mathjax','mathjax'],
   ['@mathjax/mathjax-newcm-font','mathjax-font'],
+  ['pdfjs-dist/legacy/build','pdfjs/build'],
+  ['pdfjs-dist/cmaps','pdfjs/cmaps'],
+  ['pdfjs-dist/standard_fonts','pdfjs/standard_fonts'],
+  ['pdfjs-dist/wasm','pdfjs/wasm'],
+  ['pdfjs-dist/iccs','pdfjs/iccs'],
 ]) await cp(path.join(root, 'node_modules', src), path.join(target, dest), {recursive: true});
-const names=['markdown-it','markdown-it-footnote','dompurify','@highlightjs/cdn-assets','mathjax','@mathjax/mathjax-newcm-font'];
-const notices=[];
+const names=['markdown-it','markdown-it-footnote','dompurify','@highlightjs/cdn-assets','mathjax','@mathjax/mathjax-newcm-font','pdfjs-dist'];
+const notices=[`墨页 Folio\n${await readFile(path.join(root,'LICENSE'),'utf8')}\n`,await readFile(path.join(root,'THIRD_PARTY_NOTICES.md'),'utf8')];
 for(const name of names){
   const dir=path.join(root,'node_modules',name);
   const pkg=JSON.parse(await readFile(path.join(dir,'package.json'),'utf8'));

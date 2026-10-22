@@ -17,6 +17,7 @@ test('latest input wins and failed PDF can be replaced',async({page})=>{
  await page.locator('#editor').fill('# 最新结果');
  await expect(page.frameLocator('#preview').locator('h1')).toHaveText('最新结果');
  await page.locator('#file-input').setInputFiles({name:'broken.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a PDF')});
+ await page.locator('#confirm-replace').click();
  await expect(page.locator('#status')).toContainText('PDF');
  await page.getByRole('button',{name:'打开示例',exact:true}).click();
  await expect(page.frameLocator('#preview').locator('h1')).toContainText('二阶系统');

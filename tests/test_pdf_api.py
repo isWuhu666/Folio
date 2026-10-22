@@ -18,7 +18,7 @@ class PdfApiTests(unittest.TestCase):
 
     def post(self,data=b'',query='',headers=None):
         c=http.client.HTTPConnection('127.0.0.1',self.server.server_port,timeout=10)
-        c.request('POST','/api/pdf'+query,body=data,headers=headers or {})
+        c.request('POST','/api/pdf'+query,body=data,headers={'Content-Type':'application/pdf','X-Folio-Request':'1',**(headers or {})})
         r=c.getresponse();result=(r.status,json.loads(r.read()));c.close();return result
 
     def test_actual_conversion_and_validation(self):
