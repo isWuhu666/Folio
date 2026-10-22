@@ -46,6 +46,8 @@ class DeadlineInput(io.RawIOBase):
 
 class LocalHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = sys.platform != 'win32'
+    # Queue short browser asset bursts without raising the 16 active-connection cap.
+    request_queue_size = 64
 
     def server_close(self):
         if hasattr(self,'pdf_jobs'):self.pdf_jobs.close()

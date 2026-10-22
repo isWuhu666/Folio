@@ -7,7 +7,7 @@ import {createTaskState} from './modules/state.js';
 import {createDraftStore,packFile,unpackFile,validateDraft} from './modules/drafts.js';
 import {mountProductTools} from './modules/product-tools.js';
 import {prepareOutput,outputArchive} from './modules/output.js';
-import {downloadBlob,encodeProject} from './modules/project.js';
+import {downloadBlob,encodeProject,validateProjectSourcePath} from './modules/project.js';
 import {clearSnapshots} from './modules/history.js';
 import {startPdfJob} from './modules/pdf-job.js';
 import {isAndroid,requestPrint} from './modules/platform.js';
@@ -153,6 +153,7 @@ async function acceptFiles(files,folder=false){
  if(!folder&&files.length===1&&/\.(folio|zip)$/i.test(files[0].name)){try{await productTools.importProject(files[0]);}catch(error){status(error.message,true);}finally{$('file-input').value='';}return;}
  const intent=++fileIntent,docs=files.filter(f=>/\.(md|markdown|pdf)$/i.test(f.name));
  const main=folder?(file?null:(docs.length===1?docs[0]:null)):docs[0];
+ if(main){try{validateProjectSourcePath(main.webkitRelativePath||main.name,main.name);}catch(error){status(error.message,true);$('file-input').value='';$('folder-input').value='';return;}}
  if(main&&!(await mayReplace()))return;if(intent!==fileIntent)return;
  const id=begin();
  try{
@@ -163,8 +164,9 @@ async function acceptFiles(files,folder=false){
   const images=files.filter(f=>/\.(png|jpe?g|webp|gif|svg)$/i.test(f.name)),paths=new Set(images.map(f=>f.webkitRelativePath||f.name));
   const nextFiles=(main&&!folder?[]:resourceFiles).filter(f=>!paths.has(f.webkitRelativePath||f.name)).concat(images),index=await buildResourceIndex(nextFiles),nextFile=main||file;
   if(folder&&nextFile){const matches=docs.filter(f=>f.name===nextFile.name);if(matches.length===1){const path=matches[0].webkitRelativePath||matches[0].name;nextPath=path.split('/').slice(0,-1).concat(main?main.name:basename()).join('/');}}
+  if(nextFile)validateProjectSourcePath(nextPath,nextFile.name);
   if(!state.isCurrent(id))return;
-  if(main){releasePdf();file=main;exportNameEdited=false;if(pdf){pdfUrl=URL.createObjectURL(main);$('pdf-source').data=pdfUrl;}else $('editor').value=text;}
+  if(main){releasePdf();file=main;exportNameEdited=false;if(pdf){$('pdf-pages').value='';pdfUrl=URL.createObjectURL(main);$('pdf-source').data=pdfUrl;}else $('editor').value=text;}
   sourcePath=nextPath;resourceFiles=nextFiles;resources=index;sample=false;changed();if(main)dirty=false;showFile();setTab('source');await convert(id);
  }catch(error){if(state.isCurrent(id)){$('preview-loading').hidden=true;status(error.message,true);}}
  $('file-input').value='';$('folder-input').value='';

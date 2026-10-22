@@ -9,6 +9,7 @@ import pypdfium2 as pdfium
 
 from .limits import MAX_PDF_BYTES, MAX_PAGES
 from .pdf_geometry import standard_page_box
+from .pdf_reading import has_non_horizontal_text
 
 
 class ConversionError(ValueError):
@@ -27,8 +28,10 @@ def render_faithful_page(pdfium_page,plumber_page,dpi,page_number):
     stream=BytesIO();image.save(stream,format='PNG')
     data_url='data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')
     diagnostics=[];spans=[]
-    if plumber_page.rotation or not standard_page_box(plumber_page,(width,height)):
-        reason='旋转' if plumber_page.rotation else '裁切或坐标变换'
+    if plumber_page.rotation or not standard_page_box(plumber_page,(width,height)) or has_non_horizontal_text(plumber_page):
+        reason=('旋转' if plumber_page.rotation else
+                '裁切或坐标变换' if not standard_page_box(plumber_page,(width,height)) else
+                '非正常横排文字方向（旋转、反向或镜像）')
         diagnostics.append({'code':'text-layer-skipped','page':page_number,'message':f'第 {page_number} 页有{reason}，保留原页外观并关闭定位不可靠的文字层。'})
     elif plumber_page.chars:
         for word in plumber_page.extract_words(extra_attrs=['size']):
