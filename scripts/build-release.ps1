@@ -17,6 +17,7 @@ foreach ($document in @('README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_NOT
 $docs = Join-Path $package 'docs'
 New-Item -ItemType Directory -Force -Path $docs | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $root 'docs') | Copy-Item -Destination $docs -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $root 'examples') -Destination $package -Recurse -Force
 $versionInfo = & $python -c "import sys,ssl,importlib.metadata as m; print('Python '+sys.version); print(ssl.OPENSSL_VERSION); print('PyInstaller '+m.version('pyinstaller')); print('pystray '+m.version('pystray'))"
 [IO.File]::WriteAllText((Join-Path $package 'BUILD-INFO.txt'), (($versionInfo -join "`n") + "`nBuilt UTC: " + [DateTime]::UtcNow.ToString('o') + "`nUnsigned Windows x64 development build.`n"))
 $destination = Join-Path $root 'dist\Folio-1.2.0-windows-x64.zip'
