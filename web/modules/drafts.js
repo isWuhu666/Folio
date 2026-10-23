@@ -22,6 +22,8 @@ export function createDraftStore(){
  return {
   load:()=>transaction('readonly',s=>s.get('current')),
   async save(value,expectedWriteId=null){
+   // Never replace a recoverable record with content the restore path rejects.
+   validateDraft(value);
    const db=await open(),writeId=crypto.randomUUID();
    return new Promise((resolve,reject)=>{
     const tx=db.transaction('drafts','readwrite'),s=tx.objectStore('drafts'),request=s.get('current');let conflict=false;
@@ -57,6 +59,18 @@ export function unpackFile(value){
 }
 export function validateDraft(value){
  if(!value||value.version!==1||typeof value.text!=='string'||new Blob([value.text]).size>5*1024*1024||typeof value.sourcePath!=='string'||value.sourcePath.length>1000||!Array.isArray(value.resources)||value.resources.length>256)throw new Error('草稿格式或大小无效，未覆盖任何内容');
+ for(const record of [...(value.file?[value.file]:[]),...value.resources]){
+  if(!record||!(record.blob instanceof Blob)||typeof record.name!=='string'||typeof record.path!=='string')throw new Error('草稿资源无效，请保留原始文件重新导入');
+ }
  if(value.resources.reduce((n,r)=>n+(r?.blob?.size||0),0)>80*1024*1024||(value.file?.blob?.size||0)>40*1024*1024)throw new Error('草稿资源超过大小限制');
  return value;
+}
+
+// Legacy records can fail restore validation and still contain valuable text.
+// Keep rescue independent of resource/metadata validation, with an explicit bound.
+export function rescueDraftText(value){
+ if(typeof value?.text!=='string'||new Blob([value.text]).size>20*1024*1024)throw new Error('草稿原文不可救援或超过 20 MiB 限制，请保留浏览器数据并从原文件重新导入');
+ const candidate=typeof value.sourcePath==='string'?value.sourcePath.split(/[\\/]/).at(-1):'';
+ const name=candidate&&candidate.length<=200&&!/[\x00-\x1f<>:"|?*]/.test(candidate)&&/\.(md|markdown|txt)$/i.test(candidate)?candidate:'草稿救援.txt';
+ return {text:value.text,name};
 }

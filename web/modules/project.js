@@ -22,7 +22,7 @@ async function validatePayload(value){
  }
  if(/\.pdf$/i.test(value.sourcePath)){if(!value.file||!/\.pdf$/i.test(value.file.name)||await value.file.blob.slice(0,5).text()!=='%PDF-')throw new Error('项目 PDF 原文件无效');}
  else if(value.file&&/\.pdf$/i.test(value.file.name))throw new Error('项目原文类型不一致');
- const index=await buildResourceIndex(value.resources.map(unpackFile));if(index.diagnostics.length)throw new Error(index.diagnostics[0].message);
+ const index=await buildResourceIndex(value.resources.map(unpackFile)),invalid=index.diagnostics.find(d=>d.code==='image-invalid');if(invalid)throw new Error(invalid.message);
 }
 export async function encodeProject(value){
  await validatePayload(value);const entries=[],manifest={format:'folio-project',version:1,text:value.text,sourcePath:value.sourcePath,options:value.options,editorSize:value.editorSize,pdfMode:value.pdfMode,pdfDpi:value.pdfDpi,pdfPages:value.pdfPages||'',exportProfile:value.exportProfile||'archive',exportFormat:value.exportFormat||'html',updatedAt:Date.now(),resources:[],file:null};

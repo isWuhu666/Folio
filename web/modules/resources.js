@@ -12,14 +12,17 @@ function normalize(s){
 function dataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error(`无法读取图片：${file.name}`));r.readAsDataURL(file);});}
 function svgData(text){
  const clean=DOMPurify.sanitize(text,{USE_PROFILES:{svg:true,svgFilters:true},FORBID_TAGS:['script','foreignObject','style','image','use','animate','set','a']});
+ // DOMPurify may report its HTML parser's synthetic BODY wrapper as removed.
+ // Only changes to the supplied SVG content should trigger a warning.
+ let sanitized=DOMPurify.removed.some(r=>r.attribute||r.element?.localName!=='body');
  const doc=new DOMParser().parseFromString(clean,'image/svg+xml');
  if(doc.querySelector('parsererror')||doc.documentElement.localName!=='svg')throw new Error('SVG 文件无效');
  for(const el of doc.querySelectorAll('*'))for(const a of [...el.attributes]){
-  if(/^on/i.test(a.name)||/href$/i.test(a.name)||/url\s*\(/i.test(a.value))el.removeAttribute(a.name);
+  if(/^on/i.test(a.name)||/href$/i.test(a.name)||/url\s*\(/i.test(a.value)){el.removeAttribute(a.name);sanitized=true;}
  }
  const bytes=new TextEncoder().encode(new XMLSerializer().serializeToString(doc.documentElement));
  let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);
- return 'data:image/svg+xml;base64,'+btoa(binary);
+ return {url:'data:image/svg+xml;base64,'+btoa(binary),sanitized};
 }
 export async function buildResourceIndex(files){
  if(files.length>256)throw new Error('图片数量超过 256 个，请分批处理。');
@@ -32,7 +35,10 @@ export async function buildResourceIndex(files){
   try{
    if(f.size>(/\.svg$/i.test(f.name)?2:20)*1024*1024)throw new Error('图片过大，SVG 上限 2 MiB，其他图片上限 20 MiB');
    let url;
-   if(/\.svg$/i.test(f.name))url=svgData(await f.text());
+   if(/\.svg$/i.test(f.name)){
+    const svg=svgData(await f.text());url=svg.url;
+    if(svg.sanitized)index.diagnostics.push({code:'image-sanitized',severity:'warning',resourcePath:path,source:path,message:`图片 ${path}：SVG 中的引用对象、活动内容或属性已被安全清理，图形可能缺失或变为空白。请核对预览；如显示不完整，请转换为 PNG 后重新导入。`});
+   }
    else{
     const type=f.type||({'png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','gif':'image/gif','webp':'image/webp'}[f.name.split('.').at(-1).toLowerCase()]);
     if(!raster.has(type))throw new Error('不支持的图片格式');
@@ -41,7 +47,7 @@ export async function buildResourceIndex(files){
     if(pixels>20000000)throw new Error('图片超过 2000 万像素，请先缩小图片');url=await dataUrl(blob);
    }
    const values=index.entries.get(path)||[];values.push(url);index.entries.set(path,values);
-  }catch(e){index.diagnostics.push({code:'image-invalid',source:path,message:`图片 ${path}：${e.message}`});}
+  }catch(e){index.diagnostics.push({code:'image-invalid',resourcePath:path,source:path,message:`图片 ${path}：${e.message}`});}
  }
  return index;
 }
