@@ -32,8 +32,8 @@ test('narrow viewport stays within viewport and allows preview tab',async({page}
 });
 test('a slow old file cannot overwrite a newer import',async({page})=>{
  await page.addInitScript(()=>{
-  const original=File.prototype.text;
-  File.prototype.text=async function(){const text=await original.call(this);if(this.name==='slow.md'){window.slowWaiting=true;await new Promise(r=>window.releaseSlow=r);window.slowFinished=true;}return text;};
+  const original=File.prototype.arrayBuffer;
+  File.prototype.arrayBuffer=async function(){const bytes=await original.call(this);if(this.name==='slow.md'){window.slowWaiting=true;await new Promise(r=>window.releaseSlow=r);window.slowFinished=true;}return bytes;};
  });
  await page.goto('/');await expect(page.locator('#export')).toBeEnabled();
  await page.locator('#file-input').setInputFiles({name:'slow.md',mimeType:'text/markdown',buffer:Buffer.from('# 旧文件')});
