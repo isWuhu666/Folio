@@ -86,10 +86,10 @@ test('large escaped source round trips within the documented Markdown limit',asy
  const result=await page.evaluate(async()=>{const {encodeProject,decodeProject}=await import('/modules/project.js'),text='\\'.repeat(4*1024*1024),blob=await encodeProject({version:1,text,sourcePath:'large.md',file:null,resources:[],options:{}}),restored=await decodeProject(blob);return {same:text===restored.text,size:blob.size};});expect(result.same).toBe(true);expect(result.size).toBeGreaterThan(6*1024*1024);
 });
 for(const clearVia of ['history','privacy'])test(`pending snapshot cannot resurrect records after ${clearVia} clear`,async({page})=>{
- await page.goto('/');await expect(page.locator('#export')).toBeEnabled();await page.locator('#editor').fill('# 不得恢复的快照');await page.locator('#project-history').click();
+ await page.goto('/');await expect(page.locator('#export')).toBeEnabled();await page.locator('#editor').fill('# 不得恢复的快照');await expect(page.locator('#export')).toBeEnabled();await page.locator('#project-history').click();
  await page.evaluate(()=>{const original=Blob.prototype.arrayBuffer;window.snapshotEncoding=false;Blob.prototype.arrayBuffer=function(){window.snapshotEncoding=true;const blob=this;return new Promise(resolve=>{window.resumeSnapshot=async()=>resolve(await original.call(blob));Blob.prototype.arrayBuffer=original;});};});
  await page.locator('#save-snapshot').click();await expect.poll(()=>page.evaluate(()=>window.snapshotEncoding)).toBe(true);
- if(clearVia==='history'){await page.locator('#clear-history').click();}else{await page.locator('#close-history').click();await page.locator('.privacy-settings summary').click();await page.locator('#clear-draft').click();await page.locator('#confirm-replace').click();await expect(page.locator('#save-state')).toContainText('已清除');}
+ if(clearVia==='history'){await page.locator('#clear-history').click();await expect(page.locator('#status')).toContainText('快照已清除');}else{await page.locator('#close-history').click();await page.locator('.privacy-settings summary').click();await page.locator('#clear-draft').click();await page.locator('#confirm-replace').click();await expect(page.locator('#save-state')).toContainText('已清除');}
  await page.evaluate(()=>window.resumeSnapshot());await expect(page.locator('#status')).toContainText('取消');expect(await page.evaluate(async()=>(await (await import('/modules/history.js')).listSnapshots()).length)).toBe(0);
 });
 test('replacement backup contains pasted image instead of only a broken Markdown reference',async({page})=>{

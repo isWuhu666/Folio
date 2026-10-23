@@ -27,6 +27,8 @@
 
 新增浏览器测试分别在 `draft-safety.spec.mjs`、`save-snapshots.spec.mjs`、`input-experience.spec.mjs`、`svg-feedback.spec.mjs`。既有慢导入测试的屏障从 `File.text()` 改到严格解码实际使用的 `File.arrayBuffer()`，保留旧导入不能覆盖新导入的行为断言。
 
+远程首次完整运行有两项失败：快照测试在异步清除完成前释放保存屏障，已增加明确完成信号，保持“不复活”的原断言；另一项在进入 PDF 测试前加载 JS 模块遇到客户端 `ERR_NO_BUFFER_SPACE`，trace 没有显示 PDF 转换已开始。不会把此次失败计为整套通过，也未增加自动重试；以修正后的新提交重新运行完整 CI。
+
 | 验证 | 本轮结果 |
 | --- | --- |
 | Python 完整测试 | 49 项通过 |
