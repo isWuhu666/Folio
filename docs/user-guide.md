@@ -38,9 +38,15 @@ npm.cmd run prepare:vendor
 
 ## 界面示例
 
+开发者修改网页源码后，运行 `npm run build:web` 更新本地应用 bundle；`npm run prepare:vendor` 也会完成这一步。普通用户运行已经构建好的 Windows/Android 包不需要 Node.js。
+
 ![Folio 桌面工作区](screenshots-2026-10-22/desktop.png)
 
 截图来自本次 Windows 桌面与 320px 移动视口验收。
+
+## 批量转换
+
+设置侧栏的“批量转换 · 多文档并行”可同时添加多份 Markdown/PDF 和图片，独立保留每份成品，不替换当前工作。桌面默认并发 2 个任务，Android 默认 1 个，可调为 1 或 2；支持逐项进度、预览、取消、重试、下载，以及把无需核对的成品打包 ZIP。重复图片路径明确拒绝；不同目录的同名图片需保留目录结构。结果只保留在本次页面，刷新前请下载。限制和实测见 [加载与批量并发记录](loading-batch-2026-10-26.md)。
 
 ## 完整项目与本机快照
 

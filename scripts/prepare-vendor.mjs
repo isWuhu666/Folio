@@ -16,7 +16,7 @@ for (const [src, dest] of [
   ['pdfjs-dist/wasm','pdfjs/wasm'],
   ['pdfjs-dist/iccs','pdfjs/iccs'],
 ]) await cp(path.join(root, 'node_modules', src), path.join(target, dest), {recursive: true});
-const names=['markdown-it','markdown-it-footnote','dompurify','@highlightjs/cdn-assets','mathjax','@mathjax/mathjax-newcm-font','pdfjs-dist'];
+const names=['markdown-it','markdown-it-footnote','dompurify','@highlightjs/cdn-assets','mathjax','@mathjax/mathjax-newcm-font','pdfjs-dist','esbuild'];
 const notices=[`墨页 Folio\n${await readFile(path.join(root,'LICENSE'),'utf8')}\n`,await readFile(path.join(root,'THIRD_PARTY_NOTICES.md'),'utf8')];
 for(const name of names){
   const dir=path.join(root,'node_modules',name);
@@ -28,4 +28,5 @@ for(const name of names){
   notices.push(`${name} ${pkg.version}\n${license || String(pkg.license)}\n`);
 }
 await writeFile(path.join(target,'LICENSES.txt'),notices.join('\n---\n'));
+await import('./build-web.mjs');
 console.log('本地浏览器资源已准备完成。');

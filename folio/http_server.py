@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import mimetypes
 from pathlib import Path
@@ -13,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit, parse_qs
 import webbrowser
 from .limits import MAX_PDF_BYTES, PDF_TIMEOUT_SECONDS
-from .pdf_jobs import PdfJobs, worker_command, stop_worker
+from .pdf_jobs import PdfCapacity, PdfJobs, worker_command, stop_worker
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / 'web'
@@ -50,6 +51,12 @@ class LocalHTTPServer(ThreadingHTTPServer):
     request_queue_size = 64
 
     def server_close(self):
+        if hasattr(self,'pdf_process_lock'):
+            self.pdf_lock.close()
+            with self.pdf_process_lock:
+                self.pdf_closing=True
+                processes=list(self.pdf_processes)
+            for process in processes:stop_worker(process)
         if hasattr(self,'pdf_jobs'):self.pdf_jobs.close()
         super().server_close()
 
@@ -119,13 +126,14 @@ class Handler(BaseHTTPRequestHandler):
             and self.headers.get('Sec-Fetch-Site', '') != 'cross-site'
         )
 
-    def send_bytes(self, status, data, content_type='application/json; charset=utf-8'):
+    def send_bytes(self, status, data, content_type='application/json; charset=utf-8', *, etag=None):
         self.send_response(status)
         self.send_header('Content-Type', content_type)
-        self.send_header('Content-Length', str(len(data)))
+        if status!=304:self.send_header('Content-Length', str(len(data)))
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
-        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Cache-Control', 'private, no-cache' if etag else 'no-store')
+        if etag:self.send_header('ETag', etag)
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'self' blob:; frame-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
         self.send_header('X-Frame-Options', 'SAMEORIGIN')
         self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
@@ -144,6 +152,8 @@ class Handler(BaseHTTPRequestHandler):
         if not self.valid_request():
             return self.send_json(403, {'error': '只接受本机同源请求。'})
         path = unquote(urlsplit(self.path).path)
+        if path == '/api/pdf/capacity':
+            return self.send_json(200,self.server.pdf_lock.snapshot())
         if path.startswith('/api/pdf/jobs/'):
             ident=path[len('/api/pdf/jobs/'):]
             status,payload=self.server.pdf_jobs.inspect(ident,self.headers.get('X-Folio-Job',''))
@@ -163,7 +173,14 @@ class Handler(BaseHTTPRequestHandler):
             mime = 'text/javascript'
         if mime.startswith('text/'):
             mime += '; charset=utf-8'
-        self.send_bytes(200, target.read_bytes(), mime)
+        data=target.read_bytes()
+        # Hash the bytes being served, so an edit is visible even if timestamps
+        # and file sizes match. Only public assets under WEB are cacheable.
+        etag='"'+hashlib.sha256(data).hexdigest()+'"' if base==WEB else None
+        matches=[value.strip().removeprefix('W/') for value in self.headers.get('If-None-Match','').split(',')]
+        if etag and (etag in matches or '*' in matches):
+            return self.send_bytes(304,b'',mime,etag=etag)
+        self.send_bytes(200,data,mime,etag=etag)
 
     def do_POST(self):
         if not self.valid_request():
@@ -197,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
             if size<0:return self.send_json(411,{'error':'请求缺少有效文件长度。'})
             if size>MAX_PDF_BYTES:return self.send_json(413,{'error':'PDF 超过 40 MiB，请拆分文档。'})
         except ValueError:return self.send_json(400,{'error':'转换模式、分辨率或文件长度无效。'})
-        if not self.server.pdf_lock.acquire(blocking=False):
+        if not self.server.pdf_lock.acquire_job():
             # Windows may reset a connection closed with an unread upload.
             deadline=time.monotonic()+min(self.server.upload_timeout,2)
             remaining=size
@@ -210,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not chunk:break
                     remaining-=len(chunk)
             except (TimeoutError,OSError):pass
-            return self.send_json(503,{'error':'另一个 PDF 正在转换，请稍后重试。'})
+            return self.send_json(503,{'error':'PDF 并行转换名额已满，请稍后重试。','code':'pdf_busy','retryable':True})
         process=None
         transferred=False
         try:
@@ -232,8 +249,11 @@ class Handler(BaseHTTPRequestHandler):
                 payload=self.server.pdf_jobs.start(data,mode,dpi,pages)
                 transferred=True
                 return self.send_json(202,payload)
-            process=subprocess.Popen(worker_command(mode,dpi,pages),cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
-                                     creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+            with self.server.pdf_process_lock:
+                if self.server.pdf_closing:raise RuntimeError('PDF service is closing')
+                process=subprocess.Popen(worker_command(mode,dpi,pages),cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                                         creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+                self.server.pdf_processes.add(process)
             output,_=process.communicate(data,timeout=self.server.pdf_timeout)
             if process.returncode!=0:
                 status,payload=500,{'error':'PDF 工作进程异常退出，请降低分辨率或拆分文档。'}
@@ -246,18 +266,27 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:status,payload=400,{'error':'文件数据无效或传输不完整，请重试。'}
         except Exception:status,payload=500,{'error':'PDF 转换未能完成，请重新安装依赖或检查文件。'}
         finally:
-            if process and process.poll() is None:stop_worker(process);process.communicate()
-            if not transferred:self.server.pdf_lock.release()
+            try:
+                if process and process.poll() is None:stop_worker(process);process.communicate()
+            finally:
+                if process:
+                    with self.server.pdf_process_lock:self.server.pdf_processes.discard(process)
+                if not transferred:self.server.pdf_lock.release_job()
         self.send_json(status,payload)
 
     def do_OPTIONS(self):
         self.send_json(403, {'error': '不开放跨站调用。'})
 
 
-def create_server(port=8765):
+def create_server(port=8765, *, pdf_workers=2):
+    if type(pdf_workers)!=int or pdf_workers not in (1,2):
+        raise ValueError('PDF worker count must be 1 or 2')
     server = LocalHTTPServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
-    server.pdf_lock = threading.Lock()
+    server.pdf_lock = PdfCapacity(limit=pdf_workers)
+    server.pdf_process_lock = threading.Lock()
+    server.pdf_processes = set()
+    server.pdf_closing = False
     server.pdf_timeout = PDF_TIMEOUT_SECONDS
     server.control_token = None
     server.instance_id = None

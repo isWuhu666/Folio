@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:web": "node scripts/build-web.mjs",
     "prepare:vendor": "node scripts/prepare-vendor.mjs",
     "test": "playwright test"
   },
@@ -15,6 +16,7 @@
     "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1"
+    "@playwright/test": "1.64.1",
+    "esbuild": "0.28.2"
   }
 }

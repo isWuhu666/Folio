@@ -1,6 +1,8 @@
-let loading,queue=Promise.resolve();
+// Bundled and directly imported module copies coordinate the one window MathJax engine.
+const engineKey=Symbol.for('folio.math.engine');
+const engine=window[engineKey]||={loading:null,queue:Promise.resolve()};
 function loadMath(){
- if(!loading)loading=new Promise((resolve,reject)=>{
+ if(!engine.loading)engine.loading=new Promise((resolve,reject)=>{
   window.MathJax={
    loader:{paths:{mathjax:'/vendor/mathjax',fonts:'/vendor'},load:['[tex]/ams','ui/safe']},
    output:{font:'mathjax-newcm',fontPath:'/vendor/mathjax-font'},
@@ -13,11 +15,11 @@ function loadMath(){
   script.onerror=()=>{clearTimeout(timeout);reject(new Error('公式排版资源缺失，请重新运行 安装.cmd。'));};
   document.head.append(script);
  });
- return loading;
+ return engine.loading;
 }
 export function typesetDocument(draft,options={},isCurrent=()=>true){
- const job=queue.then(async()=>{
-  if(!draft.math.length)return {...draft};
+ if(!draft.math.length)return Promise.resolve({...draft});
+ const job=engine.queue.then(async()=>{
   await loadMath();MathJax.texReset();
   const template=document.createElement('template');template.innerHTML=draft.bodyHtml;
   const diagnostics=[...draft.diagnostics];
@@ -44,5 +46,5 @@ export function typesetDocument(draft,options={},isCurrent=()=>true){
   const mathCss=MathJax.startup.adaptor.cssText(sheet);if(!attached)sheet.remove();
   return {...draft,bodyHtml:template.innerHTML,diagnostics,mathCss};
  });
- queue=job.catch(()=>{});return job;
+ engine.queue=job.catch(()=>{});return job;
 }

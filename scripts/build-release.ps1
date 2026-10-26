@@ -4,6 +4,8 @@ $root = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 Set-Location -LiteralPath $root
 $python = Join-Path $root '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) { throw 'Create .venv and install requirements.txt and requirements-build.txt first.' }
+& node scripts/build-web.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Web application bundle build failed' }
 & $python -m PyInstaller --noconfirm Folio.spec
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
 if (-not $SkipSmoke) {
