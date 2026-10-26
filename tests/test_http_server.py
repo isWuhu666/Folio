@@ -13,6 +13,17 @@ from folio.http_server import create_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_pdf_worker_capacity_can_be_lowered_but_not_raised_unbounded(self):
+        server=create_server(0,pdf_workers=1)
+        try:
+            self.assertTrue(server.pdf_lock.acquire_job())
+            self.assertFalse(server.pdf_lock.acquire_job())
+            server.pdf_lock.release_job()
+        finally:server.server_close()
+        for invalid in (0,3,True,'2'):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                create_server(0,pdf_workers=invalid)
+
     def test_browser_connection_burst_can_queue_before_accepting(self):
         server=create_server(0)
         clients=[]

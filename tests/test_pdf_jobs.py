@@ -19,6 +19,26 @@ class PdfJobsTests(unittest.TestCase):
         r=c.getresponse();status=r.status;payload=json.loads(r.read());c.close();return status,payload
     def submit(self,query=''):
         return self.request('POST','/api/pdf/jobs'+query,make_pdf(pages=3),{'Content-Type':'application/pdf','X-Folio-Request':'1'})
+    def test_capacity_reports_upload_reservations_exclusive_shutdown_and_closed_gate(self):
+        def expect(active,available):
+            self.assertEqual(self.request('GET','/api/pdf/capacity'),(200,{'active':active,'limit':2,'available':available}))
+        gate=self.server.pdf_lock
+        expect(0,True)
+        self.assertTrue(gate.acquire_job())
+        try:
+            expect(1,True)
+            self.assertTrue(gate.acquire_job())
+            try:expect(2,False)
+            finally:gate.release_job()
+            expect(1,True)
+        finally:gate.release_job()
+        self.assertTrue(gate.acquire(blocking=False))
+        try:expect(0,False)
+        finally:gate.release()
+        expect(0,True)
+        gate.close()
+        expect(0,False)
+
     def test_job_progress_token_and_result(self):
         status,job=self.submit('?dpi=96&pages=2-3');self.assertEqual(status,202)
         path='/api/pdf/jobs/'+job['id'];headers={'X-Folio-Job':job['token']}
@@ -45,6 +65,65 @@ class PdfJobsTests(unittest.TestCase):
             if value:return value
             time.sleep(.02)
         self.fail('job did not reach expected state')
+
+    def test_two_workers_share_capacity_cancel_one_preserves_other_and_shutdown_guard(self):
+        import sys
+        self.server.control_token='batch-test'
+        with patch('folio.pdf_jobs.worker_command',return_value=[sys.executable,'-c','import time; time.sleep(60)']):
+            status,first=self.submit();self.assertEqual(status,202)
+            status,second=self.submit();self.assertEqual(status,202)
+            records=[self.server.pdf_jobs.jobs[item['id']] for item in (first,second)]
+            processes=[self.wait_for(lambda record=record:record['process']) for record in records]
+            self.assertNotEqual(processes[0].pid,processes[1].pid)
+            status,busy=self.submit()
+            self.assertEqual(status,503)
+            self.assertEqual((busy['code'],busy['retryable']),('pdf_busy',True))
+            self.assertEqual(self.request('POST','/api/shutdown',headers={'X-Folio-Control':'batch-test'})[0],409)
+            status,result=self.request('POST','/api/pdf/jobs/'+first['id']+'/cancel',headers={'X-Folio-Job':first['token']})
+            self.assertEqual((status,result['state']),(200,'cancelled'))
+            self.assertIsNotNone(processes[0].poll())
+            self.assertIsNone(processes[1].poll())
+            self.assertEqual(self.request('POST','/api/shutdown',headers={'X-Folio-Control':'batch-test'})[0],409)
+            status,third=self.submit();self.assertEqual(status,202)
+            self.assertEqual(self.submit()[0],503)
+            self.server.pdf_jobs.close()
+            for record in records+[self.server.pdf_jobs.jobs[third['id']]]:
+                self.assertTrue(record['done'].is_set())
+
+    def test_concurrent_real_conversions_keep_distinct_page_results_and_credentials(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            replies=list(executor.map(self.submit,['?dpi=96&pages=1','?dpi=96&pages=2-3']))
+        self.assertEqual([reply[0] for reply in replies],[202,202])
+        first,second=[reply[1] for reply in replies]
+        self.assertEqual(self.request('GET','/api/pdf/jobs/'+first['id'],headers={'X-Folio-Job':second['token']})[0],403)
+        for job,numbers in ((first,[1]),(second,[2,3])):
+            record=self.server.pdf_jobs.jobs[job['id']]
+            self.wait_for(lambda:record.get('finished'))
+            status,result=self.request('GET','/api/pdf/jobs/'+job['id'],headers={'X-Folio-Job':job['token']})
+            self.assertEqual(result['state'],'completed',result)
+            self.assertEqual([page['number'] for page in result['result']['pages']],numbers)
+
+    def test_server_close_also_stops_legacy_conversion_worker(self):
+        import subprocess
+        import sys
+        from folio.pdf_jobs import stop_worker
+        real_popen=subprocess.Popen
+        processes=[]
+        def launch(*args,**kwargs):
+            process=real_popen(*args,**kwargs);processes.append(process);return process
+        responses=[]
+        with patch('folio.http_server.worker_command',return_value=[sys.executable,'-c','import time; time.sleep(60)']),patch('folio.http_server.subprocess.Popen',side_effect=launch):
+            caller=threading.Thread(target=lambda:responses.append(self.request('POST','/api/pdf',make_pdf(),{'Content-Type':'application/pdf','X-Folio-Request':'1'})))
+            caller.start()
+            process=self.wait_for(lambda:processes and processes[0])
+            try:
+                self.server.shutdown()
+                self.server.server_close()
+                self.assertIsNotNone(process.poll(),'forced server close must terminate legacy PDF workers')
+            finally:
+                stop_worker(process)
+                caller.join(10)
 
     def test_cancel_kills_real_worker_and_releases_conversion_lock(self):
         import sys

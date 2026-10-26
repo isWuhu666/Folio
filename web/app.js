@@ -336,6 +336,10 @@ if(isAndroid()){
  $('assets').nextElementSibling.nextElementSibling.textContent='安卓不读取整个文件夹。可打开完整项目，或逐项补齐相对路径图片。';
  $('pdf-mode-help').textContent='安卓在本机 PDF.js 中处理，最多 20 MiB、每次 30 页。保真保存原页图像；阅读仅重排简单文本，表格、公式、插图等保守回退。无 OCR。';
  $('save-project').title='原文、图片和参数一起保存到所选位置';
- window.FolioAndroidBack=()=>{const dialog=document.querySelector('dialog[open]');if(!dialog)return false;if(dialog.id==='replace-dialog'){closeReplacement(false);return true;}if(dialog.id==='recovery')return false;dialog.close();return true;};
+ window.FolioAndroidBack=()=>{const preview=$('batch-preview-dialog'),dialog=preview.open?preview:document.querySelector('dialog[open]');if(!dialog)return false;if(dialog.id==='replace-dialog'){closeReplacement(false);return true;}if(dialog.id==='recovery')return false;dialog.close();return true;};
 }else fetch('/version.json').then(r=>r.json()).then(v=>$('app-version').textContent=`墨页 Folio ${v.version}`).catch(()=>{});
+let batchTools,batchLoading;
+$('open-batch').onclick=async()=>{
+ try{if(!batchTools){batchLoading||=import('./modules/batch-ui.js').then(m=>m.mountBatchUI({getOptions:()=>({...options})})).catch(error=>{batchLoading=null;throw error;});batchTools=await batchLoading;}batchTools.open();}catch(error){status(`批量面板加载失败：${error.message}，请刷新重试。`,true);}
+};
 init().finally(()=>{document.querySelector('.workspace').inert=false;$('example').disabled=false;});

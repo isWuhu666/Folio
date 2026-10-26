@@ -16,8 +16,8 @@ function loadMath(){
  return loading;
 }
 export function typesetDocument(draft,options={},isCurrent=()=>true){
+ if(!draft.math.length)return Promise.resolve({...draft});
  const job=queue.then(async()=>{
-  if(!draft.math.length)return {...draft};
   await loadMath();MathJax.texReset();
   const template=document.createElement('template');template.innerHTML=draft.bodyHtml;
   const diagnostics=[...draft.diagnostics];

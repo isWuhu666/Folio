@@ -12,6 +12,59 @@ MAX_RESULT_BYTES = 128 * 1024 * 1024
 TERMINAL = {'completed', 'failed', 'cancelled'}
 
 
+class PdfCapacity:
+    """Bounded conversion reservations, with an exclusive shutdown reservation.
+
+    Uploads own a slot too. Releasing one job never makes shutdown safe while
+    another is active. The lock-shaped methods reserve the whole capacity.
+    """
+    def __init__(self, limit=2):
+        self.limit=limit
+        self.condition=threading.Condition()
+        self.active=0
+        self.exclusive=False
+        self.closed=False
+
+    def acquire_job(self):
+        with self.condition:
+            if self.closed or self.exclusive or self.active>=self.limit:return False
+            self.active+=1
+            return True
+
+    def snapshot(self):
+        """Advisory capacity only; callers must still handle a raced busy POST."""
+        with self.condition:
+            return {'active':self.active,'limit':self.limit,
+                    'available':not (self.closed or self.exclusive or self.active>=self.limit)}
+
+    def release_job(self):
+        with self.condition:
+            if self.active<=0:raise RuntimeError('PDF capacity released without a reservation')
+            self.active-=1
+            self.condition.notify_all()
+
+    def acquire(self, blocking=True):
+        with self.condition:
+            while self.active or self.exclusive:
+                if self.closed:return False
+                if not blocking:return False
+                self.condition.wait()
+            if self.closed:return False
+            self.exclusive=True
+            return True
+
+    def release(self):
+        with self.condition:
+            if not self.exclusive:raise RuntimeError('PDF exclusive reservation is not held')
+            self.exclusive=False
+            self.condition.notify_all()
+
+    def close(self):
+        with self.condition:
+            self.closed=True
+            self.condition.notify_all()
+
+
 def worker_command(mode, dpi, pages=''):
     executable=Path(sys.executable)
     if getattr(sys,'frozen',False):
@@ -73,7 +126,7 @@ class PdfJobs:
                     job['directory'].cleanup();del self.jobs[ident]
 
     def start(self,data,mode,dpi,pages):
-        """Caller transfers ownership of the already acquired server pdf_lock."""
+        """Caller transfers ownership of an acquired server PDF job slot."""
         directory=tempfile.TemporaryDirectory(prefix='folio-pdf-')
         try:
             source=Path(directory.name)/'input.pdf';source.write_bytes(data)
@@ -141,7 +194,7 @@ class PdfJobs:
                     if job['state']!='completed':remove_file(output)
                     if self.closed:job['directory'].cleanup()
                 finally:
-                    self.server.pdf_lock.release()
+                    self.server.pdf_lock.release_job()
                     job['finished']=True
                     job['done'].set()
 
@@ -156,7 +209,7 @@ class PdfJobs:
                 job.update(state='cancelled',stage='cancelled',updated=time.monotonic())
                 if job['process'] and job['process'].poll() is None:stop_worker(job['process'])
         if cancel:
-            # Acknowledgement means a replacement job can acquire pdf_lock.
+            # Acknowledgement means this job's capacity reservation was released.
             # _run needs self.lock to finish, so never wait while holding it.
             job['done'].wait()
         with self.lock:
@@ -168,10 +221,15 @@ class PdfJobs:
             return 200,result
 
     def close(self):
+        self.server.pdf_lock.close()
         with self.lock:
             self.closed=True;self.wakeup.set()
+            pending=list(self.jobs.values())
             for job in self.jobs.values():
                 if job['state'] not in TERMINAL:
                     job.update(state='cancelled',stage='cancelled')
                     if job['process'] and job['process'].poll() is None:stop_worker(job['process'])
                 elif job.get('finished'):job['directory'].cleanup()
+        # Workers need self.lock for final cleanup. Do not return with live
+        # child processes or private input files still being torn down.
+        for job in pending:job['done'].wait()

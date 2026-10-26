@@ -36,11 +36,48 @@ class HttpSecurityTests(unittest.TestCase):
         self.assertEqual(headers.get('Cross-Origin-Resource-Policy'), 'same-origin')
         self.assertNotIn('Access-Control-Allow-Origin', headers)
 
+    def test_pdf_capacity_is_same_origin_and_never_cacheable(self):
+        status,headers=self.request(path='/api/pdf/capacity',headers={'If-None-Match':'*'})
+        self.assertEqual(status,200)
+        self.assertEqual(headers['Cache-Control'],'no-store')
+        self.assertNotIn('ETag',headers)
+        self.assertEqual(headers['Cross-Origin-Resource-Policy'],'same-origin')
+        self.assertEqual(headers['X-Content-Type-Options'],'nosniff')
+        for untrusted in ({'Host':'evil.test'},{'Origin':'https://evil.test'},{'Sec-Fetch-Site':'cross-site'}):
+            self.assertEqual(self.request(path='/api/pdf/capacity',headers=untrusted)[0],403)
+
     def test_pdf_rejects_form_posts_and_missing_custom_header(self):
         self.assertEqual(self.request('POST','/api/pdf',{'Content-Type':'text/plain'})[0],403)
         self.assertEqual(self.request('POST','/api/pdf',{'Content-Type':'application/pdf'})[0],403)
         self.assertEqual(self.request('POST','/api/pdf',{'Content-Type':'text/plain','X-Folio-Request':'1'})[0],415)
         self.assertEqual(self.request('OPTIONS','/api/pdf',{'Origin':'https://evil.example'})[0],403)
+
+    def test_static_revalidation_retains_security_and_api_never_caches(self):
+        status,headers=self.request(path='/app.js')
+        self.assertEqual(status,200)
+        self.assertEqual(headers.get('Cache-Control'),'private, no-cache')
+        etag=headers['ETag']
+        status,cached=self.request(path='/app.js',headers={'If-None-Match':etag})
+        self.assertEqual(status,304)
+        self.assertEqual(cached['ETag'],etag)
+        self.assertEqual(cached['X-Content-Type-Options'],'nosniff')
+        self.assertEqual(self.request(path='/app.js',headers={'Origin':'https://evil.example','If-None-Match':etag})[0],403)
+        status,health=self.request(path='/api/health',headers={'If-None-Match':'*'})
+        self.assertEqual(status,200)
+        self.assertEqual(health['Cache-Control'],'no-store')
+        self.assertNotIn('ETag',health)
+
+    def test_static_etag_changes_when_same_size_content_changes(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as folder, patch('folio.http_server.WEB',Path(folder)):
+            asset=Path(folder)/'test.js';asset.write_bytes(b'first')
+            status,headers=self.request(path='/test.js');self.assertEqual(status,200)
+            asset.write_bytes(b'other')
+            status,changed=self.request(path='/test.js',headers={'If-None-Match':headers['ETag']})
+            self.assertEqual(status,200)
+            self.assertNotEqual(changed['ETag'],headers['ETag'])
 
     def test_ambiguous_request_framing_is_rejected(self):
         with socket.create_connection(('127.0.0.1',self.port),timeout=5) as client:

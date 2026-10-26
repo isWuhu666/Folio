@@ -26,6 +26,7 @@
    <button id="assets" class="resource-button">＋ 导入资源文件夹</button><input id="folder-input" type="file" webkitdirectory multiple hidden>
    <p class="field-help">可同时导入图片，保留相对路径。</p>
    <div class="tool-grid"><button id="open-project" class="small-button">打开项目</button><button id="save-project" class="small-button">保存项目</button><button id="project-history" class="small-button">本机快照</button><button id="manage-resources" class="small-button">管理图片</button></div>
+   <button id="open-batch" class="resource-button">批量转换 · 多文档并行</button>
    <input id="project-input" type="file" accept=".folio,.zip" hidden>
    <div class="sidebar-divider"></div>
    <div id="pdf-settings" hidden>
@@ -86,5 +87,15 @@
  <dialog id="formula-dialog" aria-labelledby="formula-title"><h2 id="formula-title">插入公式</h2><p>行内用 <code>$x^2$</code>，独立公式用 <code>$$…$$</code>。支持常用 AMS 语法，不能直接编译完整 LaTeX 文档。</p><div class="dialog-actions"><button class="button ghost" data-formula="fraction">分式与根号</button><button class="button ghost" data-formula="matrix">矩阵</button><button class="button ghost" data-formula="cases">分段函数</button><button class="button ghost" data-formula="aligned">多行对齐</button></div><pre id="formula-example"></pre><p>预览中双击段落可定位原文；Ctrl+F 查找，Ctrl+Shift+E 导出 HTML。中文输入法组合期间不会触发编辑快捷键。</p><button id="close-formulas" class="button primary">关闭</button></dialog>
  <dialog id="history-dialog" aria-labelledby="history-title"><h2 id="history-title">本机项目快照</h2><p>仅在点击“保存快照”后记录，保留最近 5 份、合计最多 150 MiB，超限淘汰旧快照。不上传、不加密，清理浏览器会丢失；重要工作仍请下载项目。</p><div id="history-list"></div><div class="dialog-actions"><button id="save-snapshot" class="button primary">保存当前快照</button><button id="clear-history" class="button ghost">清除全部快照</button><button id="close-history" class="button ghost">关闭</button></div></dialog>
  <dialog id="usage-dialog" aria-labelledby="usage-title"><h2 id="usage-title">三步完成文档排版</h2><ol><li>打开一份 Markdown 或 PDF，也可新建后粘贴正文。</li><li>核对预览和转换提示；缺图可在“管理图片”中选择图片修复。价格中的美元写成 <code>\$30</code>，避免被当作公式。</li><li>在输出设置选择 HTML 或 ZIP，再导出；需要继续编辑时请保存完整项目。</li></ol><p><strong>HTML / ZIP</strong>：用于阅读和分享的成品。<strong>.folio</strong>：含原文、图片与排版设置，可再次打开编辑。<strong>本机草稿与快照</strong>：仅在当前浏览器保存，不代替磁盘备份。</p><p>Markdown 支持 UTF-8 和带 BOM 的 UTF-16。GBK 等旧编码请先在文本编辑器中转为 UTF-8。PDF 不含 OCR；SVG 安全清理可能影响外观，请核对提示。</p><button id="close-usage" class="button primary">开始使用</button></dialog>
+
+ <dialog id="batch-dialog" aria-labelledby="batch-title">
+  <div class="batch-heading"><div><h2 id="batch-title">批量转换</h2><p>每份文档独立处理、保留成品，不会替换工作台原文。默认设置沿用当前排版主题。</p></div><button id="batch-close" class="button ghost">关闭面板</button></div>
+  <details id="batch-settings" open><summary>添加文件与转换设置</summary><div class="batch-controls"><button id="batch-choose" class="button ghost">添加文档和图片</button><button id="batch-folder" class="button ghost">添加资源文件夹</button><label>并发任务<select id="batch-concurrency"><option value="1">1 · 节省内存</option><option value="2" selected>2 · 并行处理</option></select></label><label>PDF 模式<select id="batch-pdf-mode"><option value="faithful">保真 · 原页</option><option value="reading">阅读 · 尝试重排</option></select></label><label>PDF 清晰度<select id="batch-pdf-dpi"><option value="96">96 DPI</option><option value="144" selected>144 DPI</option><option value="192">192 DPI</option></select></label><label>图片预设<select id="batch-profile"><option value="archive">高清存档</option><option value="reading">日常阅读</option><option value="share">小体积分享</option></select></label></div>
+  <input id="batch-input" type="file" accept=".md,.markdown,.pdf,.png,.jpg,.jpeg,.webp,.gif,.svg" multiple hidden><input id="batch-folder-input" type="file" webkitdirectory multiple hidden>
+  <p id="batch-resource-count"></p><p class="field-help">最多 20 份文档。图片按相对路径共用；桌面输入合计 120 MiB、手机 60 MiB。结果只保留在本次页面，刷新前请下载。公式顺序排版，桌面最多两个 PDF 进程；并发不保证所有机器等比例提速。</p></details>
+  <div class="batch-actions"><button id="batch-start" class="button primary">开始处理</button><button id="batch-cancel-all" class="button ghost">取消全部</button><button id="batch-download-all" class="button ghost">打包可直接导出的成品</button><button id="batch-clear" class="button ghost">清空任务和结果</button></div>
+  <p id="batch-summary" role="status" aria-live="polite"></p><p id="batch-notice" role="status" aria-live="polite"></p><ol id="batch-list"></ol>
+ </dialog>
+ <dialog id="batch-preview-dialog" aria-labelledby="batch-preview-title"><div class="batch-heading"><h2 id="batch-preview-title">成品预览</h2><button id="batch-preview-close" class="button ghost">关闭预览</button></div><iframe id="batch-preview" title="批量成品预览" sandbox="allow-same-origin allow-modals"></iframe></dialog>
  <noscript>请启用 JavaScript 以使用本机文档排版功能。</noscript>
 </body></html>

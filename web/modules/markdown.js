@@ -1,7 +1,7 @@
 import {escapeHtml} from './document.js';
-import {resolveResource} from './resources.js';
+import {resolveResource,resourceKey} from './resources.js';
 import {mathPlugin} from './math-plugin.js';
-export function renderMarkdown(source,resources=null,sourcePath='document.md'){
+export function renderMarkdown(source,resources=null,sourcePath='document.md',{onlyReferencedResources=false}={}){
  if(new TextEncoder().encode(source).length>5*1024*1024)throw new Error('Markdown 超过 5 MiB，请拆分文档。');
  const env={math:[],diagnostics:[...(resources?.diagnostics||[])],nonce:crypto.randomUUID()};
  const md=window.markdownit({html:true,linkify:true,typographer:true,highlight:(code,language)=>{
@@ -37,9 +37,9 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
   if(byMath.has(id))el.dataset.folioMath=id;
   else if(byBlock.has(id))el.dataset.folioBlock=id;
  }
- const missingAssets=[];
+ const missingAssets=[],usedResourceKeys=new Set();
  for(const img of template.content.querySelectorAll('img')){
-  const path=img.getAttribute('src')||'';const r=resolveResource(resources,path,sourcePath);
+  const path=img.getAttribute('src')||'';usedResourceKeys.add(resourceKey(path,sourcePath));const r=resolveResource(resources,path,sourcePath);
   img.removeAttribute('src');
   if(r.dataUrl){img.src=r.dataUrl;img.loading='lazy';img.decoding='async';}
   else{
@@ -59,5 +59,6 @@ export function renderMarkdown(source,resources=null,sourcePath='document.md'){
  for(const a of template.content.querySelectorAll('a')){if(!a.getAttribute('href')?.startsWith('#'))a.rel='noopener noreferrer';}
  const byId=new Map(env.math.map(m=>[m.id,m]));
  const math=[...template.content.querySelectorAll('[data-folio-math]')].map(el=>byId.get(el.dataset.folioMath));
- return {title:toc[0]?.text||sourcePath.split('/').at(-1).replace(/\.(md|markdown)$/i,''),bodyHtml:template.innerHTML,toc,diagnostics:env.diagnostics,math,blocks,missingAssets:[...new Set(missingAssets)],stats:{characters:source.length,headings:toc.length,formulas:math.length}};
+ const diagnostics=onlyReferencedResources?env.diagnostics.filter(d=>!d.resourcePath||usedResourceKeys.has(d.resourcePath)):env.diagnostics;
+ return {title:toc[0]?.text||sourcePath.split('/').at(-1).replace(/\.(md|markdown)$/i,''),bodyHtml:template.innerHTML,toc,diagnostics,math,blocks,missingAssets:[...new Set(missingAssets)],stats:{characters:source.length,headings:toc.length,formulas:math.length}};
 }

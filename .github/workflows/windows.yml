@@ -28,13 +28,8 @@ jobs:
           .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-build.txt
           npm ci
           npm run prepare:vendor
-          npx playwright install chromium
       - name: Python behavior tests
         run: .\.venv\Scripts\python.exe -m unittest discover -s tests
-      - name: Browser behavior tests
-        env:
-          FOLIO_BROWSER_CHANNEL: chromium
-        run: npm test
       - name: Build and smoke portable app
         shell: pwsh
         run: ./scripts/build-release.ps1
@@ -52,4 +47,44 @@ jobs:
           path: |
             test-results
             artifacts/*.log
+          retention-days: 7
+  browser:
+    name: browser-${{ matrix.shard }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install browser test dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run prepare:vendor
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npx playwright install chromium
+      - name: Browser behavior tests (independent shard)
+        env:
+          FOLIO_BROWSER_CHANNEL: chromium
+        run: npx playwright test --shard=${{ matrix.shard }}/3 --output=test-results-${{ matrix.shard }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-diagnostics-${{ matrix.shard }}
+          path: test-results-${{ matrix.shard }}
           retention-days: 7
