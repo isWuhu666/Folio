@@ -27,6 +27,7 @@ This application uses the following local dependencies. It does not claim owners
 | CPython runtime | Python-2.0 and bundled notices |
 | PyInstaller bootloader | GPL-2.0-or-later with bootloader exception |
 | Playwright (development only) | Apache-2.0 |
+| esbuild (build-time development tool only) | MIT |
 
 `npm run prepare:vendor` copies package license texts into `web/vendor/LICENSES.txt` and retains license files in the copied MathJax packages. Installed Python package license texts, including PDFium's full third-party notices, are under `.venv/Lib/site-packages/`, especially `pypdfium2*/` and the relevant `*.dist-info/licenses/` directories. Preserve these files if redistributing installed dependencies; this summary does not replace their license texts.
 

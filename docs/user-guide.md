@@ -38,6 +38,8 @@ npm.cmd run prepare:vendor
 
 ## 界面示例
 
+开发者修改网页源码后，运行 `npm run build:web` 更新本地应用 bundle；`npm run prepare:vendor` 也会完成这一步。普通用户运行已经构建好的 Windows/Android 包不需要 Node.js。
+
 ![Folio 桌面工作区](screenshots-2026-10-22/desktop.png)
 
 截图来自本次 Windows 桌面与 320px 移动视口验收。

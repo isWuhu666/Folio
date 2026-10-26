@@ -6,13 +6,14 @@
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232a6953'/%3E%3Cpath d='M12 10h16v4H16v6h10v4H16v8h-4z' fill='white'/%3E%3C/svg%3E">
  <link rel="stylesheet" href="/workspace.css">
  <script defer src="/vendor/markdown-it.min.js"></script><script defer src="/vendor/footnote.min.js"></script><script defer src="/vendor/purify.min.js"></script><script defer src="/vendor/highlight.min.js"></script>
- <script type="module" src="/app.js"></script>
+ <script defer src="/bootstrap.js"></script>
 </head>
 <body>
  <header class="topbar">
   <a class="brand" href="/" aria-label="墨页 Folio 首页"><span class="brand-mark">F<span></span></span><span>墨页 <b>Folio</b><small>文档排版工作台</small></span></a>
   <div class="header-right"><span class="local-badge"><i></i>文件仅在本机处理</span><button id="example" class="button ghost" disabled>打开示例</button><button id="usage-help" class="button ghost">使用指南</button><button id="focus-mode" class="button ghost" aria-pressed="false">专注模式</button><button id="export-issues" class="small-button" hidden></button><button id="export" class="button primary" disabled><span aria-hidden="true">↧</span> 导出 HTML</button></div>
  </header>
+ <div id="startup-trouble" class="startup-notice" role="status"><span id="startup-message">正在加载本机工作台；若长时间无响应，可重新加载。</span><a id="startup-reload" href="/" class="small-button">重新加载</a></div>
  <dialog id="recovery" aria-labelledby="recovery-title"><h2 id="recovery-title">找到上次的本机草稿</h2><p id="recovery-description"></p><p>包含原文、已导入图片和排版设置，仅保存在此浏览器。清理浏览器数据后可能丢失。</p><div class="dialog-actions"><button id="restore-draft" class="button primary">恢复上次工作</button><button id="backup-project-draft" class="button ghost">下载完整项目备份</button><button id="backup-draft" class="button ghost">先保存原文</button><button id="discard-draft" class="button ghost">放弃草稿并新建</button></div><p id="recovery-error" role="alert"></p></dialog>
  <dialog id="replace-dialog" aria-labelledby="replace-title"><h2 id="replace-title">保留当前工作</h2><p id="replace-message">继续会替换当前工作，可先保存完整项目。</p><div class="dialog-actions"><button id="cancel-replace" class="button ghost">取消</button><button id="backup-replace" class="button ghost">保存项目后继续</button><button id="confirm-replace" class="button primary">继续</button></div></dialog>
  <div class="workspace" inert>

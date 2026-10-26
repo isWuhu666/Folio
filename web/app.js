@@ -342,4 +342,4 @@ let batchTools,batchLoading;
 $('open-batch').onclick=async()=>{
  try{if(!batchTools){batchLoading||=import('./modules/batch-ui.js').then(m=>m.mountBatchUI({getOptions:()=>({...options})})).catch(error=>{batchLoading=null;throw error;});batchTools=await batchLoading;}batchTools.open();}catch(error){status(`批量面板加载失败：${error.message}，请刷新重试。`,true);}
 };
-init().finally(()=>{document.querySelector('.workspace').inert=false;$('example').disabled=false;});
+init().finally(()=>{document.querySelector('.workspace').inert=false;$('example').disabled=false;document.dispatchEvent(new Event('folio-ready'));});

@@ -84,3 +84,15 @@ test('independent resource indexes share a global three-file validation bound',a
   return {peak,paths:indexes.map(index=>[...index.entries.keys()])};
  });await record('global-resource-bound',result);expect(result.paths).toEqual([Array.from({length:6},(_,i)=>`a${i}.svg`),Array.from({length:6},(_,i)=>`b${i}.svg`)]);expect(result.peak).toBeGreaterThan(1);expect(result.peak).toBeLessThanOrEqual(3);
 });
+
+test('separate math module copies share one engine startup and numbering queue',async({page})=>{
+ await isolated(page);
+ const result=await page.evaluate(async()=>{
+  const [one,two]=await Promise.all([import('/modules/math.js?copy=one'),import('/modules/math.js?copy=two')]);
+  const make=()=>({bodyHtml:'<span data-folio-math="c1"></span><span data-folio-math="c2"></span>',math:[{id:'c1',tex:'\\begin{equation}x=1\\label{copy}\\end{equation}',display:true},{id:'c2',tex:'\\eqref{copy}',display:false}],diagnostics:[]});
+  const models=await Promise.allSettled([one.typesetDocument(make()),two.typesetDocument(make())]);
+  return {scripts:document.querySelectorAll('script[src="/vendor/mathjax/tex-svg.js"]').length,models:models.map(result=>result.status==='fulfilled'?{html:result.value.bodyHtml,diagnostics:result.value.diagnostics}:{error:result.reason.message})};
+ });
+ expect(result.scripts).toBe(1);
+ for(const model of result.models){expect(model.error).toBeUndefined();expect(model.diagnostics).toEqual([]);expect(model.html).toContain('open paren 1 close paren');expect(model.html).not.toContain('open paren 2 close paren');}
+});
